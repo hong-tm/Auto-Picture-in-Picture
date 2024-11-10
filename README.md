@@ -26,6 +26,9 @@ I created this userscript with the help of AI to automatically trigger Picture-i
 ### 5. **Supports Media Session API** (Chrome 120 and above)
 - 📱 The `navigator.mediaSession` API is used to set the "Enter PiP" action, allowing users to control PiP via media sessions.
 
+### 6. **Bypass User Interaction Requirement**
+- ✅ Unlike other scripts that might be limited by browser security restrictions, this script doesn't require user interaction (like clicking on the page) to activate PiP mode.
+
 ---
 
 ## ⚡⚡⚡ To ensure the script works, please follow the instructions below:
@@ -69,7 +72,9 @@ I created this userscript with the help of AI to automatically trigger Picture-i
 
 ### 5. **支持媒体会话 API**（Chrome 120 及以上）
 - 📱 使用 `navigator.mediaSession` API 设置“进入 PiP”操作，允许用户通过媒体会话来控制 PiP 模式。
-
+- 
+### 6. **绕过用户交互要求**
+- ✅ 与其他可能因浏览器安全限制而受限的脚本不同，本脚本不需要用户交互（如点击页面）来激活 PiP 模式。
 ---
 
 ## ⚡⚡⚡ 为了在 Chrome 中正确启用脚本，请按照以下步骤操作：
