@@ -1,30 +1,3 @@
-# YouTube 和 Bilibili 自动画中画 (PiP) 用户脚本
-
-> 目前只适配 Chrome! Edge 有问题
-
-我借助 AI 编写了 YouTube 和 Bilibili 视频播放时的画中画 (PiP) 模式。它处理标签切换和视频播放状态变化，提供无缝的视频观看体验。花费了一些时间，达到了最好的效果，很喜欢之前在 Arc 浏览器上的体验。维护可能随缘，因为不算太懂是依赖 AI 开发的。
-
-请享受目前最丝滑的 PiP 体验！
-
-## 主要功能：
-### 1. **自动启用画中画 (PiP) 模式**  
-- 当视频播放时，PiP 模式会自动触发，让你在浏览其他页面或执行其他操作时仍能观看视频。  
-- 如果切换标签并且视频仍在播放，PiP 将等待用户交互来触发。
-
-### 2. **防止暂停时触发 PiP**  
-- 点击暂停按钮时，PiP 模式不会被自动触发，避免不小心进入 PiP 模式。
-
-### 3. **标签切换处理**  
-- 当切换到包含视频的标签时，PiP 会保持待命状态，并仅在用户点击视频时触发。
-
-### 4. **视频点击事件**  
-- 当用户点击视频时，如果视频正在播放，脚本会触发 PiP 模式。
-
-### 5. **支持媒体会话 API**（Chrome 120 及以上）  
-- 使用 `navigator.mediaSession` API 设置“进入 PiP”操作，允许用户通过媒体会话控制 PiP。
-
----
-
 # YouTube and Bilibili Auto Picture-in-Picture (PiP) Userscript
 
 > For now only compatible to Chrome! Not yet support Edge
@@ -53,6 +26,34 @@ Enjoy the smoothest PiP experience available!
 ---
 
 This script enhances your video-watching experience by automatically enabling PiP, allowing efficient multitasking while watching videos. Feel free to reach out if you encounter any issues or need adjustments!
+
+--- 
+
+# YouTube 和 Bilibili 自动画中画 (PiP) 用户脚本
+
+> 目前只适配 Chrome! Edge 有问题
+
+我借助 AI 编写了 YouTube 和 Bilibili 视频播放时的画中画 (PiP) 模式。它处理标签切换和视频播放状态变化，提供无缝的视频观看体验。花费了一些时间，达到了最好的效果，很喜欢之前在 Arc 浏览器上的体验。维护可能随缘，因为不算太懂是依赖 AI 开发的。
+
+请享受目前最丝滑的 PiP 体验！
+
+## 主要功能：
+### 1. **自动启用画中画 (PiP) 模式**  
+- 当视频播放时，PiP 模式会自动触发，让你在浏览其他页面或执行其他操作时仍能观看视频。  
+- 如果切换标签并且视频仍在播放，PiP 将等待用户交互来触发。
+
+### 2. **防止暂停时触发 PiP**  
+- 点击暂停按钮时，PiP 模式不会被自动触发，避免不小心进入 PiP 模式。
+
+### 3. **标签切换处理**  
+- 当切换到包含视频的标签时，PiP 会保持待命状态，并仅在用户点击视频时触发。
+
+### 4. **视频点击事件**  
+- 当用户点击视频时，如果视频正在播放，脚本会触发 PiP 模式。
+
+### 5. **支持媒体会话 API**（Chrome 120 及以上）  
+- 使用 `navigator.mediaSession` API 设置“进入 PiP”操作，允许用户通过媒体会话控制 PiP。
+
 
 ![Snipaste_2024-11-11_05-07-37](https://github.com/user-attachments/assets/a368329b-3363-443f-8f6a-c85e9abccd95)
 
