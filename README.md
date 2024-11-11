@@ -1,6 +1,6 @@
 ## 🌟 **YouTube and Bilibili Auto Picture-in-Picture (PiP) Userscript**
 
-> **Currently Only Compatible with Chrome! Edge is Not Supported**
+> **Currently Only Compatible with Chrome and Brave! Edge is Not Supported**
 
 I created this userscript with the help of AI to automatically trigger Picture-in-Picture (PiP) mode while watching YouTube and Bilibili videos. It handles tab switching and video playback status changes, providing a seamless video-watching experience. It took some time, but I achieved the best results and really enjoyed the previous experience on the Arc browser. Maintenance may be sporadic since it’s AI-assisted.
 
@@ -43,11 +43,18 @@ I created this userscript with the help of AI to automatically trigger Picture-i
 - Under the "Permissions" section, find and click on "Additional Permissions Settings".
 - Locate "Automatically enter Picture-in-Picture mode" and make sure to select "Sites can automatically enter Picture-in-Picture mode". This will allow websites that support this feature to automatically enter PiP mode when playing videos.
 
+### 4. Enable developer mode for extension
+
+### 5. Chrome Flags
+Enable the following flags:
+- Auto picture in picture video heuristics
+- Auto picture in picture for video playback
+
 ---
 
 # 🌟 YouTube 和 Bilibili 自动画中画 (PiP) 用户脚本
 
-> **目前只适配 Chrome! Edge 不支持**
+> **目前只适配 Chrome 和 Brave! Edge 不支持**
 
 我借助 AI 编写了 YouTube 和 Bilibili 视频播放时的自动画中画 (PiP) 模式。它能够自动处理标签切换和视频播放状态变化，提供无缝的视频观看体验。我花了一些时间，最终在 Arc 浏览器上达到了理想效果。由于是 AI 辅助开发，维护可能会不定期进行。
 
@@ -88,6 +95,14 @@ I created this userscript with the help of AI to automatically trigger Picture-i
 ### 3. **调整自动进入画中画模式的权限**
 - 在“权限”部分，找到并点击“其他权限设置”。
 - 找到“自动进入画中画模式”，确保选择“网站可以自动进入画中画模式”。这将允许支持此功能的网站在播放视频时自动进入画中画模式。
+  
+### 4. 为扩展启用开发者模式
+
+### 5. Chrome 实验性功能
+启用以下实验性功能：
+- Auto picture in picture video heuristics
+- Auto picture in picture for video playback
+
 
 ---
 
