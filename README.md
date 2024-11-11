@@ -12,6 +12,8 @@ I created this userscript with the help of AI to automatically trigger Picture-i
 
 🎉 **Enjoy the smoothest PiP experience available!**
 
+![GIF 2024-11-11 5-04-15](https://github.com/user-attachments/assets/2a61bb9e-03a9-418f-8db6-073c98e2fcd9)
+
 ---
 
 ## 🌟 Key Features:
@@ -65,6 +67,3 @@ Enable the following flags:
 
 ![image](https://github.com/user-attachments/assets/0a4740d9-088a-4f07-a702-6baa55f66dc6)
 
----
-
-![GIF 2024-11-11 5-04-15](https://github.com/user-attachments/assets/2a61bb9e-03a9-418f-8db6-073c98e2fcd9)
