@@ -1,0 +1,6 @@
+- [ ] scroll down enable pip
+- [ ] avoid bug of bilibili scroll down pip
+- [ ] easy way to enable chrome://flag
+- [ ] easy way to enable setting for auto pip
+- [ ] minimize chrome also enable pip
+- [ ] edge support (hard)
