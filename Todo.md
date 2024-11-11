@@ -4,3 +4,4 @@
 - [ ] easy way to enable setting for auto pip
 - [ ] minimize chrome also enable pip
 - [ ] edge support (hard)
+- [ ] pip ease in out animation
