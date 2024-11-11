@@ -1,5 +1,8 @@
-## Support the author ☕
+## ☕Support the author 
 [aifadian](https://afdian.com/a/h1789)
+
+## 🔻Installation
+[greasyfork](https://greasyfork.org/zh-CN/scripts/516762-auto-picture-in-picture)
 
 ## 🌟 **YouTube and Bilibili Auto Picture-in-Picture (PiP) Userscript**
 
