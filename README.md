@@ -1,3 +1,6 @@
+## Support the author ☕
+[aifadian](https://afdian.com/a/h1789)
+
 ## 🌟 **YouTube and Bilibili Auto Picture-in-Picture (PiP) Userscript**
 
 > **Currently Only Compatible with Chrome and Brave! Edge is Not Supported**
