@@ -46,6 +46,7 @@ I created this userscript with the help of AI to automatically trigger Picture-i
 ### 4. Enable developer mode for extension
 
 ### 5. Chrome Flags
+Open chrome://flags
 Enable the following flags:
 - Auto picture in picture video heuristics
 - Auto picture in picture for video playback
@@ -99,6 +100,7 @@ Enable the following flags:
 ### 4. 为扩展启用开发者模式
 
 ### 5. Chrome 实验性功能
+开启 chrome://flags
 启用以下实验性功能：
 - Auto picture in picture video heuristics
 - Auto picture in picture for video playback
