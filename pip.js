@@ -40,7 +40,7 @@
 	let isTabActive = !document.hidden;
 	let isPiPRequested = false;
 	let pipInitiatedFromOtherTab = false;
-	let lastInteractionTime = 0;
+	// let lastInteractionTime = 0;
 	let pipAttempts = 0;
 	const MAX_PIP_ATTEMPTS = 5;
 	const PIP_RETRY_DELAY = 500;
