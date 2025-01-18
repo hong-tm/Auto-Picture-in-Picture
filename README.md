@@ -1,80 +1,63 @@
-# 🌟 YouTube and Bilibili Auto Picture-in-Picture (PiP) Userscript
+# Auto Picture-in-Picture (PiP) for YouTube and Bilibili
 
-> **Currently Only Compatible with Chrome and Brave! Edge is Not Supported**
+[![Install on GreasyFork](https://img.shields.io/badge/Install-GreasyFork-green.svg)](https://greasyfork.org/zh-CN/scripts/516762-auto-picture-in-picture)
+[![Chrome](https://img.shields.io/badge/Chrome-Supported-success.svg)]()
+[![Brave](https://img.shields.io/badge/Brave-Supported-success.svg)]()
+[![Edge](https://img.shields.io/badge/Edge-Not%20Supported-red.svg)]()
 
-This userscript automatically triggers Picture-in-Picture (PiP) mode while watching YouTube and Bilibili videos. It handles tab switching and playback status changes, providing a smooth video-watching experience. Inspired by the Arc browser experience, it was developed with AI assistance. Future maintenance may be sporadic.
+A sophisticated userscript that enhances your video-watching experience by automatically managing Picture-in-Picture (PiP) mode for YouTube and Bilibili platforms. Inspired by Arc browser's functionality and developed with modern web technologies.
 
-🎉 **Enjoy the smoothest PiP experience!**
+![Demo](https://github.com/user-attachments/assets/2a61bb9e-03a9-418f-8db6-073c98e2fcd9)
 
-![GIF Preview](https://github.com/user-attachments/assets/2a61bb9e-03a9-418f-8db6-073c98e2fcd9)
+## Features
 
----
+### Advanced PiP Management
 
-## 🔻 Installation
+- **Intelligent Activation**: Seamlessly triggers PiP mode during video playback
+- **Smart Tab Switching**: Implements sophisticated tab management with user interaction awareness
+- **Pause Protection**: Prevents unwanted PiP activation during video pauses
+- **Click Event Optimization**: Refined click handling for optimal user experience
 
-- [Install on GreasyFork](https://greasyfork.org/zh-CN/scripts/516762-auto-picture-in-picture)
+### Technical Capabilities
 
-## ☕ Support the Author
+- **Media Session API Integration** (Chrome 120+)
+  - Leverages `navigator.mediaSession` API for enhanced PiP control
+  - Implements custom PiP action handlers
+- **User Interaction Bypass**
+  - Advanced implementation that circumvents standard interaction requirements
+  - Maintains smooth functionality without compromising user experience
 
-- [aifadian](https://afdian.com/a/h1789)
+## Installation Guide
 
----
+### Chrome/Brave Setup
 
-## 🌟 Key Features
+1. **Configure Browser Settings**
 
-### 1. Automatic PiP Mode Activation
+   ```
+   Settings → Privacy and Security → Site Settings → Additional Permissions
+   ```
 
-- 🔄 PiP mode is automatically triggered during video playback, allowing you to view the video in a floating window while multitasking or browsing other pages.
-- ⚡ If you switch tabs, PiP mode will wait for user interaction to activate.
+   Enable **"Automatically enter Picture-in-Picture mode"**
 
-### 2. Prevents PiP Trigger on Pause
+2. **Enable Required Flags**
+   Navigate to `chrome://flags` and enable:
 
-- ❌ When the pause button is clicked, PiP mode will not be triggered, preventing accidental PiP entry.
+   - `Auto picture in picture video heuristics`
+   - `Auto picture in picture for video playback`
 
-### 3. Tab Switching Handling
+3. **Enable Developer Mode**
+   Required for userscript functionality
 
-- 🔄 When you return to the video tab, PiP remains in standby and activates only when the video is clicked.
+### PiP example
 
-### 4. Video Click Event
+![PiP Settings](https://github.com/user-attachments/assets/28be7dfa-a5cf-46fc-bea2-dedb48b776d1)
 
-- 🎬 PiP mode is triggered when the video is clicked, as long as it’s playing.
+### Implementation Example
 
-### 5. Supports Media Session API (Chrome 120+)
+![PiP Implementation](https://github.com/user-attachments/assets/0a4740d9-088a-4f07-a702-6baa55f66dc6)
 
-- 📱 Uses `navigator.mediaSession` API to set "Enter PiP" action, enabling control of PiP via media sessions.
+## Support Development
 
-### 6. Bypasses User Interaction Requirement
+If you find this tool valuable, consider supporting the development:
 
-- ✅ Unlike other scripts, this one activates PiP without requiring page interaction.
-
----
-
-## ⚙️ Setup Instructions for Chrome
-
-To ensure the script works correctly, follow these steps:
-
-1. **Open Chrome Settings**
-
-   - Click the "three dots" icon in the upper-right corner and select "Settings".
-
-2. **Access Site Settings**
-
-   - Go to "Privacy and Security" → "Site Settings".
-
-3. **Enable Auto PiP Mode**
-
-   - Under "Permissions," select "Additional Permissions Settings".
-   - Locate "Automatically enter Picture-in-Picture mode" and allow sites to use this feature automatically.
-
-4. **Enable Developer Mode for Extensions**
-
-5. **Enable Chrome Flags**
-   - Go to `chrome://flags` and enable:
-     - `Auto picture in picture video heuristics`
-     - `Auto picture in picture for video playback`
-
----
-
-![pip](https://github.com/user-attachments/assets/28be7dfa-a5cf-46fc-bea2-dedb48b776d1)
-
-![pip-example](https://github.com/user-attachments/assets/0a4740d9-088a-4f07-a702-6baa55f66dc6)
+- [Afdian Support Page](https://afdian.com/a/h1789)
