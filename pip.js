@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Auto Picture-in-Picture
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Automatically enables picture-in-picture mode for YouTube and Bilibili with improved Edge and Brave support
-// @author
+// @author       hong-tm
 // @license      MIT
 // @icon         https://raw.githubusercontent.com/hong-tm/blog-image/main/picture-in-picture.svg
 // @match        https://www.youtube.com/*
@@ -17,330 +17,299 @@
 (function () {
 	"use strict";
 
-	// Enhanced logging that works in all browsers
-	const debug = {
-		log: (...args) => {
+	class Logger {
+		static log(...args) {
 			console.log("[PiP Debug]", ...args);
 			try {
 				GM_log(...args);
-			} catch (e) {
-				// Fallback if GM_log isn't available
-			}
-		},
-		error: (...args) => {
+			} catch (e) {}
+		}
+
+		static error(...args) {
 			console.error("[PiP Error]", ...args);
 			try {
 				GM_log("ERROR:", ...args);
-			} catch (e) {
-				// Fallback if GM_log isn't available
-			}
-		},
-	};
+			} catch (e) {}
+		}
+	}
 
-	let isTabActive = !document.hidden;
-	let isPiPRequested = false;
-	let pipInitiatedFromOtherTab = false;
-	// let lastInteractionTime = 0;
-	let pipAttempts = 0;
-	const MAX_PIP_ATTEMPTS = 5;
-	const PIP_RETRY_DELAY = 500;
-
-	// Enhanced browser detection
-	const browserInfo = {
-		get isEdge() {
+	class BrowserDetector {
+		static get isEdge() {
 			return navigator.userAgent.includes("Edg/");
-		},
-		get isBrave() {
+		}
+
+		static get isBrave() {
 			return (
-				window.navigator.brave?.isBrave || // Direct Brave API check
+				window.navigator.brave?.isBrave ||
 				navigator.userAgent.includes("Brave") ||
 				document.documentElement.dataset.browserType === "brave"
 			);
-		},
-		get isChrome() {
+		}
+
+		static get isChrome() {
 			return (
 				navigator.userAgent.includes("Chrome") && !this.isEdge && !this.isBrave
 			);
-		},
-		get isFirefox() {
+		}
+
+		static get isFirefox() {
 			return navigator.userAgent.includes("Firefox");
-		},
-		get isChromiumBased() {
+		}
+
+		static get isChromiumBased() {
 			return this.isChrome || this.isEdge || this.isBrave;
-		},
-	};
-
-	// Enhanced video element detection
-	async function getVideoElement(retryCount = 0, maxRetries = 10) {
-		const selectors = {
-			"youtube.com": [
-				".html5-main-video",
-				"video.video-stream",
-				"#movie_player video",
-			],
-			"bilibili.com": [
-				".bilibili-player-video video",
-				"#bilibili-player video",
-				"video",
-			],
-		};
-
-		const domain = Object.keys(selectors).find((d) =>
-			window.location.hostname.includes(d)
-		);
-		if (!domain) return null;
-
-		let video = null;
-		for (const selector of selectors[domain]) {
-			video = document.querySelector(selector);
-			if (video) break;
 		}
 
-		if (!video && retryCount < maxRetries) {
-			debug.log(
-				`Video element not found, retrying... (${retryCount + 1}/${maxRetries})`
+		static get supportsPictureInPicture() {
+			return (
+				document.pictureInPictureEnabled ||
+				document.documentElement.webkitSupportsPresentationMode?.(
+					"picture-in-picture"
+				)
 			);
-			await new Promise((resolve) => setTimeout(resolve, 200));
-			return getVideoElement(retryCount + 1, maxRetries);
+		}
+	}
+
+	class VideoController {
+		constructor() {
+			this.isTabActive = !document.hidden;
+			this.isPiPRequested = false;
+			this.pipInitiatedFromOtherTab = false;
+			this.pipAttempts = 0;
+			this.MAX_PIP_ATTEMPTS = 5;
+			this.PIP_RETRY_DELAY = 500;
+			this.videoSelectors = {
+				"youtube.com": [
+					".html5-main-video",
+					"video.video-stream",
+					"#movie_player video",
+				],
+				"bilibili.com": [
+					".bilibili-player-video video",
+					"#bilibili-player video",
+					"video",
+				],
+			};
 		}
 
-		debug.log(
-			video
-				? "Video element found!"
-				: "Failed to find video element after retries."
-		);
-		return video;
-	}
+		async getVideoElement(retryCount = 0, maxRetries = 10) {
+			const domain = Object.keys(this.videoSelectors).find((d) =>
+				window.location.hostname.includes(d)
+			);
+			if (!domain) return null;
 
-	function isVideoPlaying(video) {
-		if (!video) return false;
-		const playing =
-			!video.paused &&
-			!video.ended &&
-			video.readyState > 2 &&
-			video.currentTime > 0;
-		debug.log(`Is video playing: ${playing}`);
-		return playing;
-	}
+			let video = null;
+			for (const selector of this.videoSelectors[domain]) {
+				video = document.querySelector(selector);
+				if (video) break;
+			}
 
-	// Enhanced PiP request for Chromium-based browsers
-	async function requestChromiumPiP(video) {
-		if (!video) return false;
-		debug.log(
-			`Attempting PiP on ${
-				browserInfo.isBrave ? "Brave" : browserInfo.isEdge ? "Edge" : "Chrome"
-			}...`
-		);
-
-		try {
-			// Special handling for Brave/Edge
-			if (browserInfo.isBrave || browserInfo.isEdge) {
-				// Force a user interaction context
-				video.focus();
+			if (!video && retryCount < maxRetries) {
+				Logger.log(
+					`Video element not found, retrying... (${
+						retryCount + 1
+					}/${maxRetries})`
+				);
 				await new Promise((resolve) => setTimeout(resolve, 200));
+				return this.getVideoElement(retryCount + 1, maxRetries);
+			}
 
-				// Ensure video is playing
-				if (video.paused) {
-					await video.play().catch(() => {});
+			Logger.log(
+				video
+					? "Video element found!"
+					: "Failed to find video element after retries."
+			);
+			return video;
+		}
+
+		isVideoPlaying(video) {
+			if (!video) return false;
+			return (
+				!video.paused &&
+				!video.ended &&
+				video.readyState > 2 &&
+				video.currentTime > 0
+			);
+		}
+
+		async requestPictureInPicture(video) {
+			if (!video) return false;
+			Logger.log(
+				`Attempting PiP on ${
+					BrowserDetector.isBrave
+						? "Brave"
+						: BrowserDetector.isEdge
+						? "Edge"
+						: "Chrome"
+				}...`
+			);
+
+			try {
+				if (BrowserDetector.isBrave || BrowserDetector.isEdge) {
+					video.focus();
+					await new Promise((resolve) => setTimeout(resolve, 200));
+					if (video.paused) {
+						await video.play().catch(() => {});
+					}
 				}
-			}
 
-			if (document.pictureInPictureEnabled) {
-				await video.requestPictureInPicture();
-				debug.log("PiP activated successfully!");
-				pipAttempts = 0;
-				return true;
-			} else {
-				throw new Error("PiP not enabled in browser");
-			}
-		} catch (error) {
-			debug.error("PiP request failed:", error.message);
-			pipAttempts++;
+				if (document.pictureInPictureEnabled) {
+					await video.requestPictureInPicture();
+					Logger.log("PiP activated successfully!");
+					this.pipAttempts = 0;
+					return true;
+				} else if (video.webkitSetPresentationMode) {
+					await video.webkitSetPresentationMode("picture-in-picture");
+					Logger.log("Safari PiP activated successfully!");
+					this.pipAttempts = 0;
+					return true;
+				}
+				throw new Error("PiP not supported");
+			} catch (error) {
+				Logger.error("PiP request failed:", error.message);
+				this.pipAttempts++;
 
-			if (pipAttempts < MAX_PIP_ATTEMPTS) {
-				debug.log(`Retrying PiP (attempt ${pipAttempts})...`);
-				await new Promise((resolve) => setTimeout(resolve, PIP_RETRY_DELAY));
-				return requestChromiumPiP(video);
-			} else {
-				debug.error("Max PiP attempts reached");
+				if (this.pipAttempts < this.MAX_PIP_ATTEMPTS) {
+					Logger.log(`Retrying PiP (attempt ${this.pipAttempts})...`);
+					await new Promise((resolve) =>
+						setTimeout(resolve, this.PIP_RETRY_DELAY)
+					);
+					return this.requestPictureInPicture(video);
+				}
+				Logger.error("Max PiP attempts reached");
 				return false;
 			}
 		}
-	}
 
-	async function enablePiP(forceEnable = false) {
-		try {
-			const video = await getVideoElement();
-			if (!video || (!forceEnable && !isVideoPlaying(video))) {
-				debug.log("Video not ready for PiP");
-				return;
+		async enablePiP(forceEnable = false) {
+			try {
+				const video = await this.getVideoElement();
+				if (!video || (!forceEnable && !this.isVideoPlaying(video))) {
+					Logger.log("Video not ready for PiP");
+					return;
+				}
+
+				if (!document.pictureInPictureElement && !this.isPiPRequested) {
+					const success = await this.requestPictureInPicture(video);
+					if (success) {
+						this.isPiPRequested = true;
+						this.pipInitiatedFromOtherTab = !this.isTabActive;
+					}
+				}
+			} catch (error) {
+				Logger.error("Enable PiP error:", error);
 			}
+		}
 
-			if (!document.pictureInPictureElement && !isPiPRequested) {
-				let success = false;
+		async disablePiP() {
+			if (document.pictureInPictureElement && !this.pipInitiatedFromOtherTab) {
+				try {
+					await document.exitPictureInPicture();
+					Logger.log("PiP mode exited");
+					this.isPiPRequested = false;
+					this.pipAttempts = 0;
+				} catch (error) {
+					Logger.error("Exit PiP error:", error);
+				}
+			}
+		}
 
-				if (browserInfo.isChromiumBased) {
-					success = await requestChromiumPiP(video);
+		async handleVisibilityChange() {
+			const previousState = this.isTabActive;
+			this.isTabActive = !document.hidden;
+			Logger.log(
+				`Tab visibility changed: ${this.isTabActive ? "visible" : "hidden"}`
+			);
+
+			if (previousState !== this.isTabActive) {
+				if (this.isTabActive) {
+					if (!this.pipInitiatedFromOtherTab) {
+						await this.disablePiP();
+					}
 				} else {
-					success = await video
-						.requestPictureInPicture()
-						.then(() => true)
-						.catch((e) => {
-							debug.error("Non-Chromium PiP request failed:", e);
-							return false;
-						});
-				}
-
-				if (success) {
-					debug.log("PiP enabled successfully");
-					isPiPRequested = true;
-					pipInitiatedFromOtherTab = !isTabActive;
-				}
-			}
-		} catch (error) {
-			debug.error("Enable PiP error:", error);
-		}
-	}
-
-	async function disablePiP() {
-		if (document.pictureInPictureElement && !pipInitiatedFromOtherTab) {
-			try {
-				await document.exitPictureInPicture();
-				debug.log("PiP mode exited");
-				isPiPRequested = false;
-				pipAttempts = 0;
-			} catch (error) {
-				debug.error("Exit PiP error:", error);
-			}
-		}
-	}
-
-	/* function handleUserInteraction(event) {
-        lastInteractionTime = Date.now();
-        debug.log("User interaction detected:", event.type);
-
-        if (!isTabActive) {
-            const checkAndEnablePiP = async () => {
-                const video = await getVideoElement();
-                if (video && isVideoPlaying(video)) {
-                    await enablePiP(true);
-                }
-            };
-
-            if (browserInfo.isBrave || browserInfo.isEdge) {
-                setTimeout(checkAndEnablePiP, 200);
-            } else {
-                checkAndEnablePiP();
-            }
-        }
-    } */
-
-	async function handleVisibilityChange() {
-		const previousState = isTabActive;
-		isTabActive = !document.hidden;
-		debug.log(`Tab visibility changed: ${isTabActive ? "visible" : "hidden"}`);
-
-		if (previousState !== isTabActive) {
-			if (isTabActive) {
-				if (!pipInitiatedFromOtherTab) {
-					await disablePiP();
-				}
-			} else {
-				const video = await getVideoElement();
-				if (video && isVideoPlaying(video)) {
-					const delay = browserInfo.isChromiumBased ? 200 : 0;
-					setTimeout(() => enablePiP(true), delay);
-				}
-				pipInitiatedFromOtherTab = false;
-			}
-		}
-	}
-
-	function initializeEventListeners() {
-		debug.log("Initializing event listeners...");
-
-		document.addEventListener(
-			"visibilitychange",
-			handleVisibilityChange,
-			false
-		);
-
-		/* ["click", "keydown", "mousedown", "touchstart"].forEach((eventType) => {
-            document.addEventListener(eventType, handleUserInteraction, {
-                passive: true,
-            });
-        }); */
-
-		if (window.location.hostname.includes("youtube.com")) {
-			window.addEventListener("yt-navigate-finish", () => {
-				setTimeout(async () => {
-					if (!isTabActive) {
-						const video = await getVideoElement();
-						if (video && isVideoPlaying(video)) {
-							await enablePiP();
-						}
+					const video = await this.getVideoElement();
+					if (video && this.isVideoPlaying(video)) {
+						const delay = BrowserDetector.isChromiumBased ? 200 : 0;
+						setTimeout(() => this.enablePiP(true), delay);
 					}
-				}, 1000);
+					this.pipInitiatedFromOtherTab = false;
+				}
+			}
+		}
+
+		setupMediaSession() {
+			if ("mediaSession" in navigator) {
+				try {
+					navigator.mediaSession.setActionHandler(
+						"enterpictureinpicture",
+						async () => {
+							if (!this.isTabActive) {
+								await this.enablePiP(true);
+							}
+						}
+					);
+
+					// Add support for Auto-PiP
+					if ("setAutoplayPolicy" in navigator.mediaSession) {
+						navigator.mediaSession.setAutoplayPolicy("allowed");
+					}
+
+					Logger.log("Media session handlers set up");
+				} catch (error) {
+					Logger.log("Some media session features not supported");
+				}
+			}
+		}
+
+		initialize() {
+			Logger.log("Initializing PiP controller...");
+
+			document.addEventListener(
+				"visibilitychange",
+				() => this.handleVisibilityChange(),
+				false
+			);
+
+			document.addEventListener("enterpictureinpicture", () => {
+				this.pipInitiatedFromOtherTab = !this.isTabActive;
+				this.isPiPRequested = true;
+				this.pipAttempts = 0;
+				Logger.log("Entered PiP mode");
 			});
-		}
 
-		document.addEventListener("enterpictureinpicture", () => {
-			pipInitiatedFromOtherTab = !isTabActive;
-			isPiPRequested = true;
-			pipAttempts = 0;
-			debug.log("Entered PiP mode");
-		});
+			document.addEventListener("leavepictureinpicture", () => {
+				this.isPiPRequested = false;
+				this.pipInitiatedFromOtherTab = false;
+				this.pipAttempts = 0;
+				Logger.log("Left PiP mode");
+			});
 
-		document.addEventListener("leavepictureinpicture", () => {
-			isPiPRequested = false;
-			pipInitiatedFromOtherTab = false;
-			pipAttempts = 0;
-			debug.log("Left PiP mode");
-		});
-	}
-
-	function initializeMediaSession() {
-		if ("mediaSession" in navigator) {
-			try {
-				navigator.mediaSession.setActionHandler(
-					"enterpictureinpicture",
-					async () => {
-						if (!isTabActive) {
-							await enablePiP(true);
+			if (window.location.hostname.includes("youtube.com")) {
+				window.addEventListener("yt-navigate-finish", () => {
+					setTimeout(async () => {
+						if (!this.isTabActive) {
+							const video = await this.getVideoElement();
+							if (video && this.isVideoPlaying(video)) {
+								await this.enablePiP();
+							}
 						}
-					}
-				);
-				debug.log("Media session PiP handler set");
-			} catch (error) {
-				debug.log("PiP media session action not supported");
+					}, 1000);
+				});
 			}
+
+			this.setupMediaSession();
+			this.handleVisibilityChange();
+			Logger.log("Initialization complete");
 		}
 	}
 
-	// Enhanced initialization with error handling
-	function initialize() {
-		debug.log("Initializing script...");
-		debug.log("Browser detected:", {
-			isEdge: browserInfo.isEdge,
-			isBrave: browserInfo.isBrave,
-			isChrome: browserInfo.isChrome,
-			isFirefox: browserInfo.isFirefox,
-		});
-
-		try {
-			handleVisibilityChange();
-			initializeMediaSession();
-			initializeEventListeners();
-			debug.log("Initialization complete");
-		} catch (error) {
-			debug.error("Initialization error:", error);
-		}
-	}
-
-	// Ensure script runs as early as possible
+	// Initialize the controller
+	const pipController = new VideoController();
 	if (document.readyState === "loading") {
-		document.addEventListener("DOMContentLoaded", initialize);
+		document.addEventListener("DOMContentLoaded", () =>
+			pipController.initialize()
+		);
 	} else {
-		initialize();
+		pipController.initialize();
 	}
 })();
