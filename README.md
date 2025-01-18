@@ -67,5 +67,5 @@ If you find this userscript helpful, consider supporting its development:
 
 ## Related Resources
 
-- [Chrome Auto PiP Documentation](https://developer.chrome.com/blog/auto-picture-in-picture)
+- [Chrome Auto PiP Documentation](https://developer.chrome.com/blog/automatic-picture-in-picture?hl=zh-cn)
 - [Picture-in-Picture API Specification](https://w3c.github.io/picture-in-picture)
