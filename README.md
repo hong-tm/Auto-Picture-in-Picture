@@ -1,63 +1,71 @@
-# Auto Picture-in-Picture (PiP) for YouTube and Bilibili
+# YouTube and Bilibili Auto Picture-in-Picture (PiP) Userscript
 
 [![Install on GreasyFork](https://img.shields.io/badge/Install-GreasyFork-green.svg)](https://greasyfork.org/zh-CN/scripts/516762-auto-picture-in-picture)
 [![Chrome](https://img.shields.io/badge/Chrome-Supported-success.svg)]()
 [![Brave](https://img.shields.io/badge/Brave-Supported-success.svg)]()
 [![Edge](https://img.shields.io/badge/Edge-Not%20Supported-red.svg)]()
+[![Chrome Version](https://img.shields.io/badge/Chrome-%3E%3D120-blue.svg)]()
 
-A sophisticated userscript that enhances your video-watching experience by automatically managing Picture-in-Picture (PiP) mode for YouTube and Bilibili platforms. Inspired by Arc browser's functionality and developed with modern web technologies.
+An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode for YouTube and Bilibili videos. Built with Chrome's latest Picture-in-Picture API, this script provides a seamless video-watching experience similar to the Arc browser's implementation.
+
+> **Note**: Requires Chrome 120+ for optimal functionality with the new Auto Picture-in-Picture API.
 
 ![Demo](https://github.com/user-attachments/assets/2a61bb9e-03a9-418f-8db6-073c98e2fcd9)
 
-## Features
+## Key Features
 
-### Advanced PiP Management
+### Automatic PiP Functionality
 
-- **Intelligent Activation**: Seamlessly triggers PiP mode during video playback
-- **Smart Tab Switching**: Implements sophisticated tab management with user interaction awareness
-- **Pause Protection**: Prevents unwanted PiP activation during video pauses
-- **Click Event Optimization**: Refined click handling for optimal user experience
+- **Smart Activation**: Automatically enters PiP mode during active video playback
+- **Tab Management**: Intelligently handles tab switching with user interaction detection
+- **Pause Handling**: Prevents PiP activation during video pauses
+- **Click Optimization**: Enhanced click event handling for better user experience
 
-### Technical Capabilities
+### Technical Implementation
 
-- **Media Session API Integration** (Chrome 120+)
-  - Leverages `navigator.mediaSession` API for enhanced PiP control
-  - Implements custom PiP action handlers
-- **User Interaction Bypass**
-  - Advanced implementation that circumvents standard interaction requirements
-  - Maintains smooth functionality without compromising user experience
+- **Chrome Media Session API**
+  - Utilizes `navigator.mediaSession` API for PiP control
+  - Custom action handlers for PiP state management
+- **User Interaction Enhancement**
+  - Bypasses standard interaction requirements
+  - Maintains native-like experience
 
-## Installation Guide
+## Browser Setup
 
-### Chrome/Brave Setup
+### Chrome/Brave Configuration
 
-1. **Configure Browser Settings**
+1. **Enable Auto PiP Feature**
 
    ```
    Settings → Privacy and Security → Site Settings → Additional Permissions
    ```
 
-   Enable **"Automatically enter Picture-in-Picture mode"**
+   Enable "**Automatically enter Picture-in-Picture mode**"
 
-2. **Enable Required Flags**
+2. **Configure Chrome Flags**
    Navigate to `chrome://flags` and enable:
 
    - `Auto picture in picture video heuristics`
    - `Auto picture in picture for video playback`
 
 3. **Enable Developer Mode**
-   Required for userscript functionality
+   Required for userscript installation
 
-### PiP example
+## Visual Examples
 
 ![PiP Settings](https://github.com/user-attachments/assets/28be7dfa-a5cf-46fc-bea2-dedb48b776d1)
 
-### Implementation Example
+### PiP in Action
 
 ![PiP Implementation](https://github.com/user-attachments/assets/0a4740d9-088a-4f07-a702-6baa55f66dc6)
 
-## Support Development
+## Support the Project
 
-If you find this tool valuable, consider supporting the development:
+If you find this userscript helpful, consider supporting its development:
 
-- [Afdian Support Page](https://afdian.com/a/h1789)
+- [Support on Afdian](https://afdian.com/a/h1789)
+
+## Related Resources
+
+- [Chrome Auto PiP Documentation](https://developer.chrome.com/blog/auto-picture-in-picture)
+- [Picture-in-Picture API Specification](https://w3c.github.io/picture-in-picture)
