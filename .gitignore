@@ -69,3 +69,4 @@ tsconfig.tsbuildinfo
 instructions/
 instructions/*
 .cursorignore
+.cursorrules
