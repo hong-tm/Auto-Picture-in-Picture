@@ -65,6 +65,16 @@ If you find this userscript helpful, consider supporting its development:
 
 - [Support on Afdian](https://afdian.com/a/h1789)
 
+## Star History
+
+<a href="https://www.star-history.com/#hong-tm/Auto-Picture-in-Picture&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=hong-tm/Auto-Picture-in-Picture&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=hong-tm/Auto-Picture-in-Picture&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=hong-tm/Auto-Picture-in-Picture&type=Date" />
+ </picture>
+</a>
+
 ## Related Resources
 
 - [Chrome Auto PiP Documentation](https://developer.chrome.com/blog/automatic-picture-in-picture?hl=zh-cn)
