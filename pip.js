@@ -34,38 +34,62 @@
 	}
 
 	class BrowserDetector {
+		static #cachedResults = new Map();
+
+		static #getCachedValue(key, computeValue) {
+			if (!this.#cachedResults.has(key)) {
+				this.#cachedResults.set(key, computeValue());
+			}
+			return this.#cachedResults.get(key);
+		}
+
 		static get isEdge() {
-			return navigator.userAgent.includes("Edg/");
+			return this.#getCachedValue("isEdge", () =>
+				navigator.userAgent.includes("Edg/")
+			);
 		}
 
 		static get isBrave() {
-			return (
-				window.navigator.brave?.isBrave ||
-				navigator.userAgent.includes("Brave") ||
-				document.documentElement.dataset.browserType === "brave"
+			return this.#getCachedValue(
+				"isBrave",
+				() =>
+					window.navigator.brave?.isBrave ||
+					navigator.userAgent.includes("Brave") ||
+					document.documentElement.dataset.browserType === "brave"
 			);
 		}
 
 		static get isChrome() {
-			return (
-				navigator.userAgent.includes("Chrome") && !this.isEdge && !this.isBrave
+			return this.#getCachedValue(
+				"isChrome",
+				() =>
+					navigator.userAgent.includes("Chrome") &&
+					!this.isEdge &&
+					!this.isBrave
 			);
 		}
 
 		static get isFirefox() {
-			return navigator.userAgent.includes("Firefox");
+			return this.#getCachedValue("isFirefox", () =>
+				navigator.userAgent.includes("Firefox")
+			);
 		}
 
 		static get isChromiumBased() {
-			return this.isChrome || this.isEdge || this.isBrave;
+			return this.#getCachedValue(
+				"isChromiumBased",
+				() => this.isChrome || this.isEdge || this.isBrave
+			);
 		}
 
 		static get supportsPictureInPicture() {
-			return (
-				document.pictureInPictureEnabled ||
-				document.documentElement.webkitSupportsPresentationMode?.(
-					"picture-in-picture"
-				)
+			return this.#getCachedValue(
+				"supportsPictureInPicture",
+				() =>
+					document.pictureInPictureEnabled ||
+					document.documentElement.webkitSupportsPresentationMode?.(
+						"picture-in-picture"
+					)
 			);
 		}
 	}
@@ -78,6 +102,7 @@
 			this.pipAttempts = 0;
 			this.MAX_PIP_ATTEMPTS = 5;
 			this.PIP_RETRY_DELAY = 500;
+			this.lastVideoElement = null;
 			this.videoSelectors = {
 				"youtube.com": [
 					".html5-main-video",
@@ -93,6 +118,11 @@
 		}
 
 		async getVideoElement(retryCount = 0, maxRetries = 10) {
+			// Return cached element if it's still valid
+			if (this.lastVideoElement?.isConnected) {
+				return this.lastVideoElement;
+			}
+
 			const domain = Object.keys(this.videoSelectors).find((d) =>
 				window.location.hostname.includes(d)
 			);
@@ -101,7 +131,10 @@
 			let video = null;
 			for (const selector of this.videoSelectors[domain]) {
 				video = document.querySelector(selector);
-				if (video) break;
+				if (video) {
+					this.lastVideoElement = video;
+					break;
+				}
 			}
 
 			if (!video && retryCount < maxRetries) {
@@ -110,7 +143,9 @@
 						retryCount + 1
 					}/${maxRetries})`
 				);
-				await new Promise((resolve) => setTimeout(resolve, 200));
+				await new Promise((resolve) =>
+					setTimeout(resolve, Math.min(200 * (retryCount + 1), 1000))
+				);
 				return this.getVideoElement(retryCount + 1, maxRetries);
 			}
 
@@ -153,6 +188,14 @@
 					}
 				}
 
+				// Check if Auto-PiP is supported
+				if (
+					"mediaSession" in navigator &&
+					"setAutoplayPolicy" in navigator.mediaSession
+				) {
+					navigator.mediaSession.setAutoplayPolicy("allowed");
+				}
+
 				if (document.pictureInPictureEnabled) {
 					await video.requestPictureInPicture();
 					Logger.log("PiP activated successfully!");
@@ -172,7 +215,10 @@
 				if (this.pipAttempts < this.MAX_PIP_ATTEMPTS) {
 					Logger.log(`Retrying PiP (attempt ${this.pipAttempts})...`);
 					await new Promise((resolve) =>
-						setTimeout(resolve, this.PIP_RETRY_DELAY)
+						setTimeout(
+							resolve,
+							this.PIP_RETRY_DELAY * Math.pow(1.5, this.pipAttempts)
+						)
 					);
 					return this.requestPictureInPicture(video);
 				}
@@ -240,6 +286,7 @@
 		setupMediaSession() {
 			if ("mediaSession" in navigator) {
 				try {
+					// Set up PiP action handler
 					navigator.mediaSession.setActionHandler(
 						"enterpictureinpicture",
 						async () => {
@@ -254,6 +301,21 @@
 						navigator.mediaSession.setAutoplayPolicy("allowed");
 					}
 
+					// Set up playback state handlers
+					const playbackHandlers = [
+						"play",
+						"pause",
+						"seekbackward",
+						"seekforward",
+					];
+					playbackHandlers.forEach((action) => {
+						try {
+							navigator.mediaSession.setActionHandler(action, null);
+						} catch (e) {
+							Logger.log(`${action} handler not supported`);
+						}
+					});
+
 					Logger.log("Media session handlers set up");
 				} catch (error) {
 					Logger.log("Some media session features not supported");
@@ -264,37 +326,55 @@
 		initialize() {
 			Logger.log("Initializing PiP controller...");
 
+			// Set up visibility change handler
 			document.addEventListener(
 				"visibilitychange",
 				() => this.handleVisibilityChange(),
-				false
+				{ passive: true }
 			);
 
-			document.addEventListener("enterpictureinpicture", () => {
-				this.pipInitiatedFromOtherTab = !this.isTabActive;
-				this.isPiPRequested = true;
-				this.pipAttempts = 0;
-				Logger.log("Entered PiP mode");
+			// Set up PiP event handlers
+			const pipEvents = [
+				[
+					"enterpictureinpicture",
+					() => {
+						this.pipInitiatedFromOtherTab = !this.isTabActive;
+						this.isPiPRequested = true;
+						this.pipAttempts = 0;
+						Logger.log("Entered PiP mode");
+					},
+				],
+				[
+					"leavepictureinpicture",
+					() => {
+						this.isPiPRequested = false;
+						this.pipInitiatedFromOtherTab = false;
+						this.pipAttempts = 0;
+						Logger.log("Left PiP mode");
+					},
+				],
+			];
+
+			pipEvents.forEach(([event, handler]) => {
+				document.addEventListener(event, handler, { passive: true });
 			});
 
-			document.addEventListener("leavepictureinpicture", () => {
-				this.isPiPRequested = false;
-				this.pipInitiatedFromOtherTab = false;
-				this.pipAttempts = 0;
-				Logger.log("Left PiP mode");
-			});
-
+			// YouTube-specific handling
 			if (window.location.hostname.includes("youtube.com")) {
-				window.addEventListener("yt-navigate-finish", () => {
-					setTimeout(async () => {
-						if (!this.isTabActive) {
-							const video = await this.getVideoElement();
-							if (video && this.isVideoPlaying(video)) {
-								await this.enablePiP();
+				window.addEventListener(
+					"yt-navigate-finish",
+					() => {
+						setTimeout(async () => {
+							if (!this.isTabActive) {
+								const video = await this.getVideoElement();
+								if (video && this.isVideoPlaying(video)) {
+									await this.enablePiP();
+								}
 							}
-						}
-					}, 1000);
-				});
+						}, 1000);
+					},
+					{ passive: true }
+				);
 			}
 
 			this.setupMediaSession();
