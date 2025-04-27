@@ -86,7 +86,7 @@ Required for userscript installation
 <summary><b>Configuration Screenshots</b></summary>
 <br>
 
-### PiP Interface (ChromeChrome)
+### PiP Interface (Chrome)
 
 ![interface](https://github.com/user-attachments/assets/43697cdd-c785-4d83-bbf8-6d0bbc45f0a3)
 
