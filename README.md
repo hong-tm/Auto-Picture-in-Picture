@@ -26,7 +26,7 @@
   - [2. Configure Chrome Flags](#2-configure-chrome-flags)
   - [3. Enable Developer Mode](#3-enable-developer-mode)
 - [Visual Examples](#visual-examples)
-  - [PiP Interface (ChromeChrome)](#pip-interface-chromechrome)
+  - [PiP Interface (Chrome)](#pip-interface-chrome)
 - [Technical Implementation](#technical-implementation)
 - [Project Statistics](#project-statistics)
 - [Resources](#resources)
@@ -89,7 +89,6 @@ Required for userscript installation
 ### PiP Interface (Chrome)
 
 ![interface](https://github.com/user-attachments/assets/43697cdd-c785-4d83-bbf8-6d0bbc45f0a3)
-
 
 ![PiP Implementation](https://github.com/user-attachments/assets/0a4740d9-088a-4f07-a702-6baa55f66dc6)
 
