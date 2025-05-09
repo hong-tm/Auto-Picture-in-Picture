@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Auto Picture-in-Picture
 // @namespace    http://tampermonkey.net/
-// @version      1.2
-// @description  Automatically enables picture-in-picture mode for YouTube and Bilibili with improved Edge and Brave support
+// @version      1.3
+// @description  Automatically enables picture-in-picture mode for videos with improved cross-browser support
 // @author       hong-tm
 // @license      MIT
 // @icon         https://raw.githubusercontent.com/hong-tm/blog-image/main/picture-in-picture.svg
@@ -17,92 +17,129 @@
 (function () {
 	"use strict";
 
-	class Logger {
-		static log(...args) {
-			console.log("[PiP Debug]", ...args);
+	// Configuration constants
+	const CONFIG = Object.freeze({
+		MAX_PIP_ATTEMPTS: 5,
+		PIP_RETRY_DELAY: 500,
+		YT_NAVIGATION_DELAY: 1000,
+		VIDEO_RETRY_DELAY: 200,
+		VIDEO_MAX_RETRIES: 10,
+		DEBUG: false, // Set to true to enable detailed logging
+		RESPECT_NATIVE: true, // Prioritize browser's native Auto PiP functionality
+	});
+
+	// Simplified logger
+	const Logger = {
+		log(...args) {
+			if (!CONFIG.DEBUG) return;
+			console.log("[PiP]", ...args);
 			try {
 				GM_log(...args);
-			} catch (e) {}
-		}
-
-		static error(...args) {
+			} catch {}
+		},
+		error(...args) {
 			console.error("[PiP Error]", ...args);
 			try {
 				GM_log("ERROR:", ...args);
-			} catch (e) {}
-		}
-	}
+			} catch {}
+		},
+	};
 
-	class BrowserDetector {
-		static #cachedResults = new Map();
+	// Browser detector - using lazy loading and caching results
+	const BrowserDetector = (() => {
+		const cache = new Map();
 
-		static #getCachedValue(key, computeValue) {
-			if (!this.#cachedResults.has(key)) {
-				this.#cachedResults.set(key, computeValue());
+		const getCached = (key, fn) => {
+			if (!cache.has(key)) {
+				cache.set(key, fn());
 			}
-			return this.#cachedResults.get(key);
-		}
+			return cache.get(key);
+		};
 
-		static get isEdge() {
-			return this.#getCachedValue("isEdge", () =>
-				navigator.userAgent.includes("Edg/")
-			);
-		}
+		const ua = navigator.userAgent;
 
-		static get isBrave() {
-			return this.#getCachedValue(
-				"isBrave",
-				() =>
-					window.navigator.brave?.isBrave ||
-					navigator.userAgent.includes("Brave") ||
-					document.documentElement.dataset.browserType === "brave"
-			);
-		}
+		return {
+			get isEdge() {
+				return getCached("isEdge", () => ua.includes("Edg/"));
+			},
+			get isBrave() {
+				return getCached(
+					"isBrave",
+					() =>
+						window.navigator.brave?.isBrave ||
+						ua.includes("Brave") ||
+						document.documentElement.dataset.browserType === "brave"
+				);
+			},
+			get isFirefox() {
+				return getCached("isFirefox", () => ua.includes("Firefox"));
+			},
+			get isChromiumBased() {
+				return getCached(
+					"isChromiumBased",
+					() =>
+						(ua.includes("Chrome") && !this.isEdge && !this.isBrave) ||
+						this.isEdge ||
+						this.isBrave
+				);
+			},
+			get supportsPictureInPicture() {
+				return getCached(
+					"supportsPictureInPicture",
+					() =>
+						document.pictureInPictureEnabled ||
+						document.documentElement.webkitSupportsPresentationMode?.(
+							"picture-in-picture"
+						)
+				);
+			},
+			// Detect if browser supports native Auto PiP
+			get supportsNativeAutoPiP() {
+				return getCached("supportsNativeAutoPiP", () => {
+					// Chrome/Edge/Brave 137+ detection (by checking specific flags API)
+					if (this.isChromiumBased) {
+						// Check if auto-picture-in-picture-for-video-playback flag is enabled
+						const hasAutoPiPFlag =
+							"chrome" in window &&
+							chrome.webviewTag !== undefined &&
+							"mediaSession" in navigator &&
+							"setAutoplayPolicy" in navigator.mediaSession;
 
-		static get isChrome() {
-			return this.#getCachedValue(
-				"isChrome",
-				() =>
-					navigator.userAgent.includes("Chrome") &&
-					!this.isEdge &&
-					!this.isBrave
-			);
-		}
+						if (hasAutoPiPFlag) {
+							Logger.log("Native Auto PiP detected in Chromium browser");
+							return true;
+						}
+					}
 
-		static get isFirefox() {
-			return this.#getCachedValue("isFirefox", () =>
-				navigator.userAgent.includes("Firefox")
-			);
-		}
+					// Firefox 130+ detection (through specific Firefox API behavior)
+					if (this.isFirefox) {
+						// Firefox has no direct API detection, check version and specific behavior
+						const firefoxMatch = ua.match(/Firefox\/(\d+)/);
+						if (firefoxMatch && parseInt(firefoxMatch[1], 10) >= 130) {
+							Logger.log(
+								"Potentially using Firefox with native Auto PiP support"
+							);
+							return true;
+						}
+					}
 
-		static get isChromiumBased() {
-			return this.#getCachedValue(
-				"isChromiumBased",
-				() => this.isChrome || this.isEdge || this.isBrave
-			);
-		}
+					return false;
+				});
+			},
+		};
+	})();
 
-		static get supportsPictureInPicture() {
-			return this.#getCachedValue(
-				"supportsPictureInPicture",
-				() =>
-					document.pictureInPictureEnabled ||
-					document.documentElement.webkitSupportsPresentationMode?.(
-						"picture-in-picture"
-					)
-			);
-		}
-	}
-
+	// Video controller class - handles PiP operations
 	class VideoController {
 		constructor() {
 			this.isTabActive = !document.hidden;
 			this.isPiPRequested = false;
 			this.pipInitiatedFromOtherTab = false;
 			this.pipAttempts = 0;
-			this.MAX_PIP_ATTEMPTS = 5;
-			this.PIP_RETRY_DELAY = 500;
 			this.lastVideoElement = null;
+			this.usingNativeAutoPiP = false;
+
+			// Domain-specific video selectors
 			this.videoSelectors = {
 				"youtube.com": [
 					".html5-main-video",
@@ -115,51 +152,80 @@
 					"video",
 				],
 			};
+
+			// Detect if browser supports native Auto PiP
+			this.checkNativeAutoPiPSupport();
+
+			// Bind methods to maintain correct 'this' context
+			this.handleVisibilityChange = this.handleVisibilityChange.bind(this);
+			this.handlePipEnter = this.handlePipEnter.bind(this);
+			this.handlePipExit = this.handlePipExit.bind(this);
+			this.handleYouTubeNavigation = this.handleYouTubeNavigation.bind(this);
 		}
 
-		async getVideoElement(retryCount = 0, maxRetries = 10) {
-			// Return cached element if it's still valid
+		/**
+		 * Detect whether to use browser's native Auto PiP functionality
+		 */
+		checkNativeAutoPiPSupport() {
+			if (CONFIG.RESPECT_NATIVE && BrowserDetector.supportsNativeAutoPiP) {
+				this.usingNativeAutoPiP = true;
+				Logger.log("Using native browser Auto PiP functionality");
+			} else {
+				this.usingNativeAutoPiP = false;
+				Logger.log("Using script's Auto PiP implementation");
+			}
+		}
+
+		/**
+		 * Get the video element from the current page
+		 * @param {number} retryCount - Current retry count
+		 * @returns {Promise<HTMLVideoElement|null>} Video element or null
+		 */
+		async getVideoElement(retryCount = 0) {
+			// Check if cached element is still valid
 			if (this.lastVideoElement?.isConnected) {
 				return this.lastVideoElement;
 			}
 
+			// Determine selectors for the current domain
 			const domain = Object.keys(this.videoSelectors).find((d) =>
 				window.location.hostname.includes(d)
 			);
+
 			if (!domain) return null;
 
-			let video = null;
+			// Try all possible selectors
 			for (const selector of this.videoSelectors[domain]) {
-				video = document.querySelector(selector);
+				const video = document.querySelector(selector);
 				if (video) {
 					this.lastVideoElement = video;
-					break;
+					Logger.log("Video element found");
+					return video;
 				}
 			}
 
-			if (!video && retryCount < maxRetries) {
-				Logger.log(
-					`Video element not found, retrying... (${
-						retryCount + 1
-					}/${maxRetries})`
+			// If no video found and maximum retries not exceeded, retry
+			if (retryCount < CONFIG.VIDEO_MAX_RETRIES) {
+				const delay = Math.min(
+					CONFIG.VIDEO_RETRY_DELAY * (retryCount + 1),
+					1000
 				);
-				await new Promise((resolve) =>
-					setTimeout(resolve, Math.min(200 * (retryCount + 1), 1000))
-				);
-				return this.getVideoElement(retryCount + 1, maxRetries);
+				await new Promise((resolve) => setTimeout(resolve, delay));
+				return this.getVideoElement(retryCount + 1);
 			}
 
-			Logger.log(
-				video
-					? "Video element found!"
-					: "Failed to find video element after retries."
-			);
-			return video;
+			Logger.log("Failed to find video element after retries");
+			return null;
 		}
 
+		/**
+		 * Check if a video is currently playing
+		 * @param {HTMLVideoElement} video - Video element
+		 * @returns {boolean} Whether the video is playing
+		 */
 		isVideoPlaying(video) {
-			if (!video) return false;
 			return (
+				video &&
 				!video.paused &&
 				!video.ended &&
 				video.readyState > 2 &&
@@ -167,19 +233,16 @@
 			);
 		}
 
+		/**
+		 * Request Picture-in-Picture mode
+		 * @param {HTMLVideoElement} video - Video element
+		 * @returns {Promise<boolean>} Whether successful
+		 */
 		async requestPictureInPicture(video) {
 			if (!video) return false;
-			Logger.log(
-				`Attempting PiP on ${
-					BrowserDetector.isBrave
-						? "Brave"
-						: BrowserDetector.isEdge
-						? "Edge"
-						: "Chrome"
-				}...`
-			);
 
 			try {
+				// Special handling for Brave and Edge
 				if (BrowserDetector.isBrave || BrowserDetector.isEdge) {
 					video.focus();
 					await new Promise((resolve) => setTimeout(resolve, 200));
@@ -188,7 +251,7 @@
 					}
 				}
 
-				// Check if Auto-PiP is supported
+				// Try to set media session autoplay policy
 				if (
 					"mediaSession" in navigator &&
 					"setAutoplayPolicy" in navigator.mediaSession
@@ -196,42 +259,55 @@
 					navigator.mediaSession.setAutoplayPolicy("allowed");
 				}
 
+				// Try to request PiP mode
 				if (document.pictureInPictureEnabled) {
 					await video.requestPictureInPicture();
-					Logger.log("PiP activated successfully!");
+					Logger.log("PiP activated successfully");
 					this.pipAttempts = 0;
 					return true;
 				} else if (video.webkitSetPresentationMode) {
 					await video.webkitSetPresentationMode("picture-in-picture");
-					Logger.log("Safari PiP activated successfully!");
+					Logger.log("Safari PiP activated successfully");
 					this.pipAttempts = 0;
 					return true;
 				}
-				throw new Error("PiP not supported");
+
+				throw new Error("PiP not supported in this browser");
 			} catch (error) {
-				Logger.error("PiP request failed:", error.message);
+				Logger.error(`PiP request failed: ${error.message}`);
 				this.pipAttempts++;
 
-				if (this.pipAttempts < this.MAX_PIP_ATTEMPTS) {
-					Logger.log(`Retrying PiP (attempt ${this.pipAttempts})...`);
-					await new Promise((resolve) =>
-						setTimeout(
-							resolve,
-							this.PIP_RETRY_DELAY * Math.pow(1.5, this.pipAttempts)
-						)
+				// Use exponential backoff strategy for retries
+				if (this.pipAttempts < CONFIG.MAX_PIP_ATTEMPTS) {
+					const delay =
+						CONFIG.PIP_RETRY_DELAY * Math.pow(1.5, this.pipAttempts);
+					Logger.log(
+						`Retrying PiP (attempt ${this.pipAttempts}) in ${delay}ms`
 					);
+					await new Promise((resolve) => setTimeout(resolve, delay));
 					return this.requestPictureInPicture(video);
 				}
+
 				Logger.error("Max PiP attempts reached");
 				return false;
 			}
 		}
 
+		/**
+		 * Enable Picture-in-Picture mode
+		 * @param {boolean} forceEnable - Whether to force enable
+		 * @returns {Promise<void>}
+		 */
 		async enablePiP(forceEnable = false) {
+			// If using native Auto PiP, skip our implementation (unless forced)
+			if (this.usingNativeAutoPiP && !forceEnable) {
+				Logger.log("Relying on native Auto PiP functionality");
+				return;
+			}
+
 			try {
 				const video = await this.getVideoElement();
 				if (!video || (!forceEnable && !this.isVideoPlaying(video))) {
-					Logger.log("Video not ready for PiP");
 					return;
 				}
 
@@ -243,11 +319,21 @@
 					}
 				}
 			} catch (error) {
-				Logger.error("Enable PiP error:", error);
+				Logger.error(`Enable PiP error: ${error.message}`);
 			}
 		}
 
+		/**
+		 * Disable Picture-in-Picture mode
+		 * @returns {Promise<void>}
+		 */
 		async disablePiP() {
+			// If using native Auto PiP, skip our implementation
+			if (this.usingNativeAutoPiP) {
+				Logger.log("Relying on native Auto PiP functionality for exit");
+				return;
+			}
+
 			if (document.pictureInPictureElement && !this.pipInitiatedFromOtherTab) {
 				try {
 					await document.exitPictureInPicture();
@@ -255,38 +341,55 @@
 					this.isPiPRequested = false;
 					this.pipAttempts = 0;
 				} catch (error) {
-					Logger.error("Exit PiP error:", error);
+					Logger.error(`Exit PiP error: ${error.message}`);
 				}
 			}
 		}
 
+		/**
+		 * Handle tab visibility changes
+		 * @returns {Promise<void>}
+		 */
 		async handleVisibilityChange() {
 			const previousState = this.isTabActive;
 			this.isTabActive = !document.hidden;
-			Logger.log(
-				`Tab visibility changed: ${this.isTabActive ? "visible" : "hidden"}`
-			);
 
-			if (previousState !== this.isTabActive) {
-				if (this.isTabActive) {
-					if (!this.pipInitiatedFromOtherTab) {
-						await this.disablePiP();
-					}
-				} else {
-					const video = await this.getVideoElement();
-					if (video && this.isVideoPlaying(video)) {
-						const delay = BrowserDetector.isChromiumBased ? 200 : 0;
-						setTimeout(() => this.enablePiP(true), delay);
-					}
-					this.pipInitiatedFromOtherTab = false;
+			// Only process if state actually changed
+			if (previousState === this.isTabActive) return;
+
+			Logger.log(`Tab visibility: ${this.isTabActive ? "visible" : "hidden"}`);
+
+			// If using native Auto PiP, reduce our intervention
+			if (this.usingNativeAutoPiP) {
+				Logger.log("Relying on native Auto PiP for visibility change");
+				return;
+			}
+
+			if (this.isTabActive) {
+				// Exit PiP when tab becomes active (unless initiated from another tab)
+				if (!this.pipInitiatedFromOtherTab) {
+					await this.disablePiP();
 				}
+			} else {
+				// Enable PiP when tab becomes inactive
+				const video = await this.getVideoElement();
+				if (video && this.isVideoPlaying(video)) {
+					const delay = BrowserDetector.isChromiumBased ? 200 : 0;
+					setTimeout(() => this.enablePiP(true), delay);
+				}
+				this.pipInitiatedFromOtherTab = false;
 			}
 		}
 
+		/**
+		 * Set up media session handlers
+		 */
 		setupMediaSession() {
-			if ("mediaSession" in navigator) {
-				try {
-					// Set up PiP action handler
+			if (!("mediaSession" in navigator)) return;
+
+			try {
+				// Set up PiP action handler
+				if ("setActionHandler" in navigator.mediaSession) {
 					navigator.mediaSession.setActionHandler(
 						"enterpictureinpicture",
 						async () => {
@@ -296,95 +399,121 @@
 						}
 					);
 
-					// Add support for Auto-PiP
-					if ("setAutoplayPolicy" in navigator.mediaSession) {
-						navigator.mediaSession.setAutoplayPolicy("allowed");
-					}
-
-					// Set up playback state handlers
-					const playbackHandlers = [
-						"play",
-						"pause",
-						"seekbackward",
-						"seekforward",
-					];
-					playbackHandlers.forEach((action) => {
+					// Set up other playback control handlers
+					["play", "pause", "seekbackward", "seekforward"].forEach((action) => {
 						try {
 							navigator.mediaSession.setActionHandler(action, null);
-						} catch (e) {
-							Logger.log(`${action} handler not supported`);
-						}
+						} catch {}
 					});
-
-					Logger.log("Media session handlers set up");
-				} catch (error) {
-					Logger.log("Some media session features not supported");
 				}
+
+				// Allow autoplay
+				if ("setAutoplayPolicy" in navigator.mediaSession) {
+					navigator.mediaSession.setAutoplayPolicy("allowed");
+				}
+
+				Logger.log("Media session handlers set up");
+			} catch (error) {
+				Logger.log("Some media session features not supported");
 			}
 		}
 
+		/**
+		 * Handle PiP enter event
+		 */
+		handlePipEnter() {
+			this.pipInitiatedFromOtherTab = !this.isTabActive;
+			this.isPiPRequested = true;
+			this.pipAttempts = 0;
+			Logger.log("Entered PiP mode");
+		}
+
+		/**
+		 * Handle PiP exit event
+		 */
+		handlePipExit() {
+			this.isPiPRequested = false;
+			this.pipInitiatedFromOtherTab = false;
+			this.pipAttempts = 0;
+			Logger.log("Left PiP mode");
+		}
+
+		/**
+		 * Handle YouTube navigation events
+		 */
+		async handleYouTubeNavigation() {
+			// If using native Auto PiP, reduce our intervention
+			if (this.usingNativeAutoPiP) return;
+
+			// Delay check for video after navigation
+			setTimeout(async () => {
+				if (!this.isTabActive) {
+					const video = await this.getVideoElement();
+					if (video && this.isVideoPlaying(video)) {
+						await this.enablePiP();
+					}
+				}
+			}, CONFIG.YT_NAVIGATION_DELAY);
+		}
+
+		/**
+		 * Initialize the controller
+		 */
 		initialize() {
 			Logger.log("Initializing PiP controller...");
+			Logger.log(
+				`Browser: ${
+					BrowserDetector.isFirefox
+						? "Firefox"
+						: BrowserDetector.isEdge
+						? "Edge"
+						: BrowserDetector.isBrave
+						? "Brave"
+						: "Chrome"
+				}`
+			);
+			Logger.log(
+				`Native Auto PiP support: ${this.usingNativeAutoPiP ? "Yes" : "No"}`
+			);
 
 			// Set up visibility change handler
 			document.addEventListener(
 				"visibilitychange",
-				() => this.handleVisibilityChange(),
+				this.handleVisibilityChange,
 				{ passive: true }
 			);
 
 			// Set up PiP event handlers
-			const pipEvents = [
-				[
-					"enterpictureinpicture",
-					() => {
-						this.pipInitiatedFromOtherTab = !this.isTabActive;
-						this.isPiPRequested = true;
-						this.pipAttempts = 0;
-						Logger.log("Entered PiP mode");
-					},
-				],
-				[
-					"leavepictureinpicture",
-					() => {
-						this.isPiPRequested = false;
-						this.pipInitiatedFromOtherTab = false;
-						this.pipAttempts = 0;
-						Logger.log("Left PiP mode");
-					},
-				],
-			];
-
-			pipEvents.forEach(([event, handler]) => {
-				document.addEventListener(event, handler, { passive: true });
+			document.addEventListener("enterpictureinpicture", this.handlePipEnter, {
+				passive: true,
+			});
+			document.addEventListener("leavepictureinpicture", this.handlePipExit, {
+				passive: true,
 			});
 
 			// YouTube-specific handling
 			if (window.location.hostname.includes("youtube.com")) {
 				window.addEventListener(
 					"yt-navigate-finish",
-					() => {
-						setTimeout(async () => {
-							if (!this.isTabActive) {
-								const video = await this.getVideoElement();
-								if (video && this.isVideoPlaying(video)) {
-									await this.enablePiP();
-								}
-							}
-						}, 1000);
-					},
+					this.handleYouTubeNavigation,
 					{ passive: true }
 				);
 			}
 
+			// Set up media session
 			this.setupMediaSession();
+
+			// Initial visibility state handling
 			this.handleVisibilityChange();
+
 			Logger.log("Initialization complete");
 		}
 	}
 
-	// Initialize the controller
+	// Initialize controller
 	const pipController = new VideoController();
+
+	// Initialize after DOM loads
 	if (document.readyState === "loading") {
 		document.addEventListener("DOMContentLoaded", () =>
 			pipController.initialize()
