@@ -10,7 +10,12 @@
     <img src="https://img.shields.io/badge/Edge-Supported-success.svg" alt="Edge">
     <img src="https://img.shields.io/badge/Chrome-%3E%3D120-blue.svg" alt="Chrome Version">
     <a href="https://afdian.com/a/h1789"><img src="https://img.shields.io/badge/Support-Afdian-blue.svg" alt="Support on Afdian"></a>
+  </p>
 
+  <p>
+    <b>Language:</b> 
+    <a href="README.md">English</a> | 
+    <a href="README_zh.md">中文</a>
   </p>
 
 ![Demo](https://github.com/user-attachments/assets/2a61bb9e-03a9-418f-8db6-073c98e2fcd9)
@@ -111,11 +116,31 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 <summary><b>Using Native Auto PiP (Experimental)</b></summary>
 <br>
 
-1. For auto PiP control:
+1. Enable Experimental Auto PiP Feature
+   ```
+   Type about:settings#experimental in the address bar
+   ```
+2. Check the box for "**picture-in-picture auto-open on tab switch**"
+
+3. For manual PiP control:
    ```
    Settings → General → Browsing
    ```
    Ensure "**Enable picture-in-picture video controls (E)**" is checked
+
+</details>
+
+<details>
+<summary><b>Zen Browser (Firefox-based)</b></summary>
+<br>
+
+Zen Browser is based on Firefox and includes similar Auto PiP functionality. The setup process is similar:
+
+1. Navigate to `about:settings#experimental` in Zen Browser
+2. Enable the experimental PiP features
+3. For best results, ensure you're using Zen Browser version 120 or higher
+
+Note: Zen Browser often includes additional performance optimizations for video playback, which can enhance the PiP experience.
 
 </details>
 
