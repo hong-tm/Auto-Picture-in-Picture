@@ -362,9 +362,7 @@
 						navigator.mediaSession.setActionHandler(
 							"enterpictureinpicture",
 							async () => {
-								if (!document.pictureInPictureElement) {
-									await video.requestPictureInPicture();
-								}
+								await video.requestPictureInPicture().catch(() => {});
 							}
 						);
 
@@ -399,22 +397,24 @@
 
 				// Try to enter PiP mode
 				if (document.pictureInPictureEnabled) {
-					// Only request PiP if we have a user gesture or already have an element in PiP
-					if (this.#hasUserGesture || document.pictureInPictureElement) {
+					try {
 						await video.requestPictureInPicture();
 						Logger.log("PiP activated successfully!");
 						this.#pipAttempts = 0;
 						PerformanceMonitor.end("requestPictureInPicture");
 						return true;
-					} else {
-						// If no user gesture, try using media session API
+					} catch (e) {
+						// If direct PiP request fails, try using media session
 						if ("mediaSession" in navigator) {
 							navigator.mediaSession.metadata = new MediaMetadata({
 								title: document.title,
 							});
-							Logger.log("Waiting for automatic PiP via media session");
-							return false;
+							Logger.log("Attempting automatic PiP via media session");
+							// Force a visibility change to trigger PiP
+							this.#handleVisibilityChange();
+							return true;
 						}
+						throw e;
 					}
 				} else if (video.webkitSetPresentationMode) {
 					await video.webkitSetPresentationMode("picture-in-picture");
@@ -456,11 +456,15 @@
 				}
 
 				if (!document.pictureInPictureElement && !this.#isPiPRequested) {
+					// Set initial state
+					this.#hasUserGesture = true;
 					const success = await this.requestPictureInPicture(video);
 					if (success) {
 						this.#isPiPRequested = true;
 						this.#pipInitiatedFromOtherTab = !this.#isTabActive;
 					}
+					// Reset user gesture flag after attempt
+					this.#hasUserGesture = false;
 				}
 			} catch (error) {
 				Logger.error("Enable PiP error:", error);
@@ -622,7 +626,19 @@
 			PerformanceMonitor.initPerformanceObserver();
 			this.#addEventListeners();
 			this.setupMediaSession();
-			this.#handleVisibilityChange();
+
+			// Force immediate visibility check and PiP attempt
+			setTimeout(() => {
+				this.#isTabActive = !document.hidden;
+				if (!this.#isTabActive) {
+					this.getVideoElement().then((video) => {
+						if (video && this.isVideoPlaying(video)) {
+							this.enablePiP(true);
+						}
+					});
+				}
+			}, 500);
+
 			Logger.log("Initialization complete");
 		}
 	}
