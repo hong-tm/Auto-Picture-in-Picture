@@ -130,7 +130,7 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 
 </details>
 
-<details>
+<details open>
 <summary><b>Zen Browser (Firefox-based)</b></summary>
 <br>
 
