@@ -130,7 +130,7 @@
 
 </details>
 
-<details>
+<details open>
 <summary><b>Zen 浏览器 (基于 Firefox)</b></summary>
 <br>
 
