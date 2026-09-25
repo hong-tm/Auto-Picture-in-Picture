@@ -229,6 +229,7 @@
 		#lastVideoElement = null;
 		#pipEventVideo = null;
 		#videoObserver = null;
+		#observerActive = false;
 		#biliNavWrapped = false;
 		#eventListeners = new Set();
 		#debounceTimers = new Map();
@@ -285,6 +286,22 @@
 				childList: true,
 				subtree: true,
 			});
+			this.#observerActive = true;
+		}
+
+		#setVideoObserverActive(active) {
+			if (active) {
+				if (!this.#observerActive && this.#videoObserver) {
+					this.#videoObserver.observe(document.documentElement, {
+						childList: true,
+						subtree: true,
+					});
+					this.#observerActive = true;
+				}
+			} else if (this.#observerActive) {
+				this.#videoObserver?.disconnect();
+				this.#observerActive = false;
+			}
 		}
 
 		#syncPipListeners() {
@@ -344,7 +361,7 @@
 		}
 
 		async #rescanAfterNavigation() {
-			// BUG-5 hook: this.#setVideoObserverActive(true);
+			this.#setVideoObserverActive(true);
 			if (this.#lastVideoElement?.isConnected) return;
 
 			this.#lastVideoElement = null;
@@ -376,6 +393,7 @@
 				video = document.querySelector(selector);
 				if (video) {
 					this.#lastVideoElement = video;
+					this.#setVideoObserverActive(false);
 					this.#syncPipListeners();
 					break;
 				}
@@ -400,6 +418,9 @@
 					: "Failed to find video element after retries."
 			);
 			PerformanceMonitor.end("getVideoElement");
+			if (!video) {
+				this.#setVideoObserverActive(true);
+			}
 			return video;
 		}
 
@@ -558,6 +579,7 @@
 			this.#isPiPRequested = false;
 			this.#pipInitiatedFromOtherTab = false;
 			this.#pipAttempts = 0;
+			this.#setVideoObserverActive(true);
 			Logger.log("Left PiP mode");
 		};
 
@@ -567,6 +589,7 @@
 			Logger.log(
 				`Tab visibility changed: ${this.#isTabActive ? "visible" : "hidden"}`
 			);
+			if (!this.#lastVideoElement?.isConnected) this.#setVideoObserverActive(true);
 
 			if (previousState !== this.#isTabActive) {
 				if (this.#isTabActive) {
@@ -632,6 +655,7 @@
 					"yt-navigate-finish",
 					this.#debounce(async () => {
 						if (!this.#isTabActive) {
+							this.#setVideoObserverActive(true);
 							const video = await this.getVideoElement();
 							if (video && this.isVideoPlaying(video)) {
 								await this.enablePiP();
@@ -664,6 +688,7 @@
 				this.#videoObserver.disconnect();
 				this.#videoObserver = null;
 			}
+			this.#observerActive = false;
 
 			this.#debounceTimers.forEach((timer) => clearTimeout(timer));
 			this.#debounceTimers.clear();
