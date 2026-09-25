@@ -229,6 +229,7 @@
 		#lastVideoElement = null;
 		#pipEventVideo = null;
 		#videoObserver = null;
+		#biliNavWrapped = false;
 		#eventListeners = new Set();
 		#debounceTimers = new Map();
 
@@ -314,6 +315,45 @@
 				this.#pipEventVideo = null;
 			}
 		}
+
+		#installBilibiliNavigationWatch(addListener) {
+			if (this.#biliNavWrapped) return;
+			this.#biliNavWrapped = true;
+
+			const originalPushState = history.pushState;
+			const originalReplaceState = history.replaceState;
+			const controller = this;
+
+			history.pushState = function (...args) {
+				const result = originalPushState.apply(this, args);
+				controller.#scheduleBiliRescan();
+				return result;
+			};
+
+			history.replaceState = function (...args) {
+				const result = originalReplaceState.apply(this, args);
+				controller.#scheduleBiliRescan();
+				return result;
+			};
+
+			addListener(window, "popstate", () => this.#scheduleBiliRescan());
+		}
+
+		#scheduleBiliRescan() {
+			this.#debounce(() => this.#rescanAfterNavigation(), 300)();
+		}
+
+		async #rescanAfterNavigation() {
+			// BUG-5 hook: this.#setVideoObserverActive(true);
+			if (this.#lastVideoElement?.isConnected) return;
+
+			this.#lastVideoElement = null;
+			const video = await this.getVideoElement();
+			if (video && !this.#isTabActive && this.isVideoPlaying(video)) {
+				this.enablePiP(true);
+			}
+		}
+
 
 		async getVideoElement(retryCount = 0, maxRetries = 5) {
 			PerformanceMonitor.start("getVideoElement");
@@ -584,7 +624,9 @@
 
 			addListener(document, "visibilitychange", this.#handleVisibilityChange);
 
-			if (window.location.hostname.includes("youtube.com")) {
+			if (window.location.hostname.includes("bilibili.com")) {
+				this.#installBilibiliNavigationWatch(addListener);
+			} else if (window.location.hostname.includes("youtube.com")) {
 				addListener(
 					window,
 					"yt-navigate-finish",
