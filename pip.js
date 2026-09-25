@@ -18,7 +18,6 @@
 	"use strict";
 
 	const DEBUG = false;
-	const PERFORMANCE_MONITORING = false;
 
 	class Logger {
 		static #queue = [];
@@ -52,97 +51,6 @@
 			try {
 				GM_log("ERROR:", ...args);
 			} catch (e) {}
-		}
-	}
-
-	class PerformanceMonitor {
-		static #metrics = new Map();
-		static #enabled = PERFORMANCE_MONITORING;
-		static #observer = null;
-
-		static start(operation) {
-			if (!this.#enabled) return;
-			this.#metrics.set(operation, performance.now());
-
-			// Create performance mark
-			performance.mark(`${operation}-start`);
-		}
-
-		static end(operation) {
-			if (!this.#enabled) return;
-			const startTime = this.#metrics.get(operation);
-			if (startTime) {
-				const duration = performance.now() - startTime;
-				Logger.log(`Performance [${operation}]: ${duration.toFixed(2)}ms`);
-				this.#metrics.delete(operation);
-
-				// Create performance measure
-				performance.mark(`${operation}-end`);
-				performance.measure(
-					operation,
-					`${operation}-start`,
-					`${operation}-end`
-				);
-			}
-		}
-
-		static initPerformanceObserver() {
-			if (!this.#enabled || this.#observer) return;
-
-			try {
-				this.#observer = new PerformanceObserver((list) => {
-					list.getEntries().forEach((entry) => {
-						if (entry.entryType === "measure") {
-							Logger.log(
-								`Performance Measure [${entry.name}]: ${entry.duration.toFixed(
-									2
-								)}ms`
-							);
-						}
-					});
-				});
-
-				this.#observer.observe({ entryTypes: ["measure", "mark"] });
-			} catch (e) {
-				Logger.error("PerformanceObserver not supported:", e);
-			}
-		}
-
-		static cleanup() {
-			if (this.#observer) {
-				this.#observer.disconnect();
-				this.#observer = null;
-			}
-		}
-	}
-
-	class MediaCapabilitiesHelper {
-		static async checkVideoCapabilities(video) {
-			if (!("mediaCapabilities" in navigator)) return true;
-
-			try {
-				const mediaConfig = {
-					type: "file",
-					video: {
-						contentType:
-							video.videoWidth > 1920
-								? 'video/webm; codecs="vp9"'
-								: 'video/webm; codecs="vp8"',
-						width: video.videoWidth,
-						height: video.videoHeight,
-						bitrate: 2000000,
-						framerate: 30,
-					},
-				};
-
-				const result = await navigator.mediaCapabilities.decodingInfo(
-					mediaConfig
-				);
-				return result.supported && result.smooth && result.powerEfficient;
-			} catch (e) {
-				Logger.error("Media Capabilities check failed:", e);
-				return true;
-			}
 		}
 	}
 
@@ -371,12 +279,8 @@
 			}
 		}
 
-
 		async getVideoElement(retryCount = 0, maxRetries = 5) {
-			PerformanceMonitor.start("getVideoElement");
-
 			if (this.#lastVideoElement?.isConnected) {
-				PerformanceMonitor.end("getVideoElement");
 				return this.#lastVideoElement;
 			}
 
@@ -384,7 +288,6 @@
 				window.location.hostname.includes(d)
 			);
 			if (!domain) {
-				PerformanceMonitor.end("getVideoElement");
 				return null;
 			}
 
@@ -408,7 +311,6 @@
 				await new Promise((resolve) =>
 					setTimeout(resolve, Math.min(200 * (retryCount + 1), 1000))
 				);
-				PerformanceMonitor.end("getVideoElement");
 				return this.getVideoElement(retryCount + 1, maxRetries);
 			}
 
@@ -417,7 +319,6 @@
 					? "Video element found!"
 					: "Failed to find video element after retries."
 			);
-			PerformanceMonitor.end("getVideoElement");
 			if (!video) {
 				this.#setVideoObserverActive(true);
 			}
@@ -436,17 +337,8 @@
 
 		async requestPictureInPicture(video) {
 			if (!video) return false;
-			PerformanceMonitor.start("requestPictureInPicture");
 
 			try {
-				// Check media capabilities first
-				const isCapable = await MediaCapabilitiesHelper.checkVideoCapabilities(
-					video
-				);
-				if (!isCapable) {
-					Logger.log("Video playback might not be smooth or power efficient");
-				}
-
 				// Setup media session for automatic PiP
 				if ("mediaSession" in navigator) {
 					try {
@@ -488,7 +380,6 @@
 						await video.requestPictureInPicture();
 						Logger.log("PiP activated successfully!");
 						this.#pipAttempts = 0;
-						PerformanceMonitor.end("requestPictureInPicture");
 						return true;
 					} catch (e) {
 						// If direct PiP request fails, try using media session
@@ -507,7 +398,6 @@
 					await video.webkitSetPresentationMode("picture-in-picture");
 					Logger.log("Safari PiP activated successfully!");
 					this.#pipAttempts = 0;
-					PerformanceMonitor.end("requestPictureInPicture");
 					return true;
 				}
 				throw new Error("PiP not supported");
@@ -523,22 +413,18 @@
 							VideoController.PIP_RETRY_DELAY * Math.pow(1.5, this.#pipAttempts)
 						)
 					);
-					PerformanceMonitor.end("requestPictureInPicture");
 					return this.requestPictureInPicture(video);
 				}
 				Logger.error("Max PiP attempts reached");
-				PerformanceMonitor.end("requestPictureInPicture");
 				return false;
 			}
 		}
 
 		async enablePiP(forceEnable = false) {
-			PerformanceMonitor.start("enablePiP");
 			try {
 				const video = await this.getVideoElement();
 				if (!video || (!forceEnable && !this.isVideoPlaying(video))) {
 					Logger.log("Video not ready for PiP");
-					PerformanceMonitor.end("enablePiP");
 					return;
 				}
 
@@ -552,7 +438,6 @@
 			} catch (error) {
 				Logger.error("Enable PiP error:", error);
 			}
-			PerformanceMonitor.end("enablePiP");
 		}
 
 		async disablePiP() {
@@ -692,13 +577,10 @@
 
 			this.#debounceTimers.forEach((timer) => clearTimeout(timer));
 			this.#debounceTimers.clear();
-
-			PerformanceMonitor.cleanup();
 		}
 
 		initialize() {
 			Logger.log("Initializing PiP controller...");
-			PerformanceMonitor.initPerformanceObserver();
 			this.#addEventListeners();
 			this.setupMediaSession();
 
