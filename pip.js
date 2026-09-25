@@ -227,6 +227,7 @@
 		#pipInitiatedFromOtherTab = false;
 		#pipAttempts = 0;
 		#lastVideoElement = null;
+		#pipEventVideo = null;
 		#videoObserver = null;
 		#eventListeners = new Set();
 		#debounceTimers = new Map();
@@ -286,6 +287,35 @@
 			});
 		}
 
+		#syncPipListeners() {
+			if (this.#pipEventVideo === this.#lastVideoElement) return;
+
+			if (this.#pipEventVideo) {
+				this.#pipEventVideo.removeEventListener(
+					"enterpictureinpicture",
+					this.#onEnterPiP
+				);
+				this.#pipEventVideo.removeEventListener(
+					"leavepictureinpicture",
+					this.#onLeavePiP
+				);
+			}
+
+			if (this.#lastVideoElement && this.#lastVideoElement.isConnected) {
+				this.#lastVideoElement.addEventListener(
+					"enterpictureinpicture",
+					this.#onEnterPiP
+				);
+				this.#lastVideoElement.addEventListener(
+					"leavepictureinpicture",
+					this.#onLeavePiP
+				);
+				this.#pipEventVideo = this.#lastVideoElement;
+			} else {
+				this.#pipEventVideo = null;
+			}
+		}
+
 		async getVideoElement(retryCount = 0, maxRetries = 5) {
 			PerformanceMonitor.start("getVideoElement");
 
@@ -307,6 +337,7 @@
 				video = document.querySelector(selector);
 				if (video) {
 					this.#lastVideoElement = video;
+					this.#syncPipListeners();
 					break;
 				}
 			}
@@ -485,6 +516,20 @@
 			}
 		}
 
+		#onEnterPiP = () => {
+			this.#pipInitiatedFromOtherTab = !this.#isTabActive;
+			this.#isPiPRequested = true;
+			this.#pipAttempts = 0;
+			Logger.log("Entered PiP mode");
+		};
+
+		#onLeavePiP = () => {
+			this.#isPiPRequested = false;
+			this.#pipInitiatedFromOtherTab = false;
+			this.#pipAttempts = 0;
+			Logger.log("Left PiP mode");
+		};
+
 		#handleVisibilityChange = this.#debounce(async () => {
 			const previousState = this.#isTabActive;
 			this.#isTabActive = !document.hidden;
@@ -563,31 +608,6 @@
 
 			addListener(document, "visibilitychange", this.#handleVisibilityChange);
 
-			const pipEvents = [
-				[
-					"enterpictureinpicture",
-					() => {
-						this.#pipInitiatedFromOtherTab = !this.#isTabActive;
-						this.#isPiPRequested = true;
-						this.#pipAttempts = 0;
-						Logger.log("Entered PiP mode");
-					},
-				],
-				[
-					"leavepictureinpicture",
-					() => {
-						this.#isPiPRequested = false;
-						this.#pipInitiatedFromOtherTab = false;
-						this.#pipAttempts = 0;
-						Logger.log("Left PiP mode");
-					},
-				],
-			];
-
-			pipEvents.forEach(([event, handler]) => {
-				addListener(document, event, handler);
-			});
-
 			if (window.location.hostname.includes("youtube.com")) {
 				addListener(
 					window,
@@ -609,6 +629,18 @@
 				target.removeEventListener(event, handler);
 			});
 			this.#eventListeners.clear();
+
+			if (this.#pipEventVideo) {
+				this.#pipEventVideo.removeEventListener(
+					"enterpictureinpicture",
+					this.#onEnterPiP
+				);
+				this.#pipEventVideo.removeEventListener(
+					"leavepictureinpicture",
+					this.#onLeavePiP
+				);
+				this.#pipEventVideo = null;
+			}
 
 			if (this.#videoObserver) {
 				this.#videoObserver.disconnect();
