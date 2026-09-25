@@ -231,7 +231,6 @@
 		#videoObserver = null;
 		#eventListeners = new Set();
 		#debounceTimers = new Map();
-		#hasUserGesture = false;
 
 		static MAX_PIP_ATTEMPTS = 3;
 		static PIP_RETRY_DELAY = 500;
@@ -487,15 +486,11 @@
 				}
 
 				if (!document.pictureInPictureElement && !this.#isPiPRequested) {
-					// Set initial state
-					this.#hasUserGesture = true;
 					const success = await this.requestPictureInPicture(video);
 					if (success) {
 						this.#isPiPRequested = true;
 						this.#pipInitiatedFromOtherTab = !this.#isTabActive;
 					}
-					// Reset user gesture flag after attempt
-					this.#hasUserGesture = false;
 				}
 			} catch (error) {
 				Logger.error("Enable PiP error:", error);
@@ -594,17 +589,6 @@
 				target.addEventListener(event, handler, options);
 				this.#eventListeners.add({ target, event, handler });
 			};
-
-			// Track user interactions to detect user gestures
-			["mousedown", "keydown", "touchstart"].forEach((eventType) => {
-				addListener(document, eventType, () => {
-					this.#hasUserGesture = true;
-					// Reset after a short delay
-					setTimeout(() => {
-						this.#hasUserGesture = false;
-					}, 1000);
-				});
-			});
 
 			addListener(document, "visibilitychange", this.#handleVisibilityChange);
 
