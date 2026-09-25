@@ -396,10 +396,6 @@
 							}
 						);
 
-						if ("setAutoplayPolicy" in navigator.mediaSession) {
-							navigator.mediaSession.setAutoplayPolicy("allowed");
-						}
-
 						// Set media session metadata for better system integration
 						navigator.mediaSession.metadata = new MediaMetadata({
 							title: document.title,
@@ -559,10 +555,6 @@
 							}
 						}
 					);
-
-					if ("setAutoplayPolicy" in navigator.mediaSession) {
-						navigator.mediaSession.setAutoplayPolicy("allowed");
-					}
 
 					["play", "pause", "seekbackward", "seekforward"].forEach((action) => {
 						try {
