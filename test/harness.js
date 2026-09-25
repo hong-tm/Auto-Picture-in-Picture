@@ -14,6 +14,8 @@
 //     It returns the first connected video whose tags include the selector.
 //   - mediaCapabilities.decodingInfo always reports supported/smooth/powerEfficient.
 //   - document.hidden fires visibilitychange only when the value actually changes.
+//   - detach(video) models the browser: removing a video that is in PiP clears
+//     document.pictureInPictureElement and fires leavepictureinpicture on it.
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -272,6 +274,10 @@ function createWorld(options = {}) {
 		video.isConnected = false;
 		const index = connectedVideos.indexOf(video);
 		if (index >= 0) connectedVideos.splice(index, 1);
+		if (document.pictureInPictureElement === video) {
+			document.pictureInPictureElement = null;
+			video.dispatch("leavepictureinpicture", { type: "leavepictureinpicture" });
+		}
 	}
 
 	// --- MutationObserver -------------------------------------------------
