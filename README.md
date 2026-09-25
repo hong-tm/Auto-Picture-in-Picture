@@ -45,6 +45,16 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 
 > **Note**: Many browsers now offer native Auto PiP features in beta/experimental mode.
 
+## Changelog
+
+### v1.4.1
+
+- PiP enter and leave events are now tracked on the video element instead of the document. That matches the API spec and keeps state tracking correct on engines that do not bubble these events.
+- Switching videos inside Bilibili keeps auto PiP working. The script watches the site's in-page navigation, locks the new video, and re-enters PiP when the tab is hidden.
+- The DOM observer stops once a video is locked, so the script does less work while a video plays.
+- Removed dead code and the call to `mediaSession.setAutoplayPolicy`, an API no browser ships.
+- The regression suite runs with `node test/run.js`.
+
 ## Key Features
 
 <details open>
