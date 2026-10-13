@@ -3,7 +3,8 @@
 // Fenced-region guards. These regions are explicitly out of scope for the
 // v1.4.1 bugfix (see the plan's "Out of scope" table) and must stay
 // byte-identical. The header may only change its @version line, which may be
-// 1.4 or 1.4.1 (todo 11 bumps it; this suite must not need an edit).
+// 1.4.x or 1.5.x (todo 11 and the issue #4 feature bump it; this suite must not
+// need an edit per release).
 //
 // These guards pass on unmodified v1.4 and must stay green through the chain.
 
@@ -14,7 +15,7 @@ const path = require("node:path");
 const PIP_SOURCE = fs.readFileSync(path.join(__dirname, "..", "pip.js"), "utf8");
 const PIP_LINES = PIP_SOURCE.split("\n");
 
-const VERSION_LINE = /^\s*\/\/\s*@version\s+1\.4(\.1)?\s*$/;
+const VERSION_LINE = /^\s*\/\/\s*@version\s+1\.(4|5)(\.\d+)?\s*$/;
 
 const HEADER = [
 	"// ==UserScript==",
@@ -71,7 +72,7 @@ module.exports = {
 			assert.ok(PIP_LINES.length >= 15, "pip.js must have at least 15 lines");
 			for (let i = 0; i < 15; i++) {
 				if (i === 3) {
-					assert.match(PIP_LINES[i], VERSION_LINE, "@version must be 1.4 or 1.4.1");
+					assert.match(PIP_LINES[i], VERSION_LINE, "@version must be 1.4.x or 1.5.x");
 				} else {
 					assert.equal(PIP_LINES[i], HEADER[i], `header line ${i + 1} must be unchanged`);
 				}
