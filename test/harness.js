@@ -14,6 +14,8 @@
 //     It returns the first connected video whose tags include the selector.
 //   - mediaCapabilities.decodingInfo always reports supported/smooth/powerEfficient.
 //   - document.hidden fires visibilitychange only when the value actually changes.
+//   - window focus is modeled by setWindowFocused(), which dispatches blur/focus on
+//     the sandbox window; blur/focus never bubble.
 //   - detach(video) models the browser: removing a video that is in PiP clears
 //     document.pictureInPictureElement and fires leavepictureinpicture on it.
 
@@ -187,6 +189,7 @@ function createWorld(options = {}) {
 	};
 
 	let hidden = false;
+	let windowFocused = true;
 	Object.defineProperty(document, "hidden", {
 		configurable: true,
 		enumerable: true,
@@ -409,6 +412,13 @@ function createWorld(options = {}) {
 		document.hidden = value;
 	}
 
+	function setWindowFocused(value) {
+		const next = Boolean(value);
+		if (next === windowFocused) return;
+		windowFocused = next;
+		sandbox.dispatch(next ? "focus" : "blur", { type: next ? "focus" : "blur" });
+	}
+
 	function userEnterPip(video) {
 		document.pictureInPictureElement = video;
 		video.dispatch("enterpictureinpicture", { type: "enterpictureinpicture" });
@@ -466,6 +476,7 @@ function createWorld(options = {}) {
 		attach,
 		detach,
 		setHidden,
+		setWindowFocused,
 		userEnterPip,
 		userLeavePip,
 		swapVideo,

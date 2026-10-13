@@ -131,6 +131,7 @@
 
 	class VideoController {
 		#isTabActive = !document.hidden;
+		#isWindowFocused = true;
 		#isPiPRequested = false;
 		#pipInitiatedFromOtherTab = false;
 		#pipAttempts = 0;
@@ -388,8 +389,8 @@
 								title: document.title,
 							});
 							Logger.log("Attempting automatic PiP via media session");
-							// Force a visibility change to trigger PiP
-							this.#handleVisibilityChange();
+							// Re-evaluate the active state to trigger PiP
+							this.#applyActiveState();
 							return true;
 						}
 						throw e;
@@ -468,11 +469,15 @@
 			Logger.log("Left PiP mode");
 		};
 
-		#handleVisibilityChange = this.#debounce(async () => {
+		#computeActive() {
+			return !document.hidden && this.#isWindowFocused;
+		}
+
+		#applyActiveState = this.#debounce(async () => {
 			const previousState = this.#isTabActive;
-			this.#isTabActive = !document.hidden;
+			this.#isTabActive = this.#computeActive();
 			Logger.log(
-				`Tab visibility changed: ${this.#isTabActive ? "visible" : "hidden"}`
+				`Active state changed: ${this.#isTabActive ? "active" : "inactive"}`
 			);
 			if (!this.#lastVideoElement?.isConnected) this.#setVideoObserverActive(true);
 
@@ -485,12 +490,24 @@
 					const video = await this.getVideoElement();
 					if (video && this.isVideoPlaying(video)) {
 						const delay = BrowserDetector.isChromiumBased ? 200 : 0;
-						setTimeout(() => this.enablePiP(true), delay);
+						setTimeout(() => {
+							if (!this.#isTabActive) this.enablePiP(true);
+						}, delay);
 					}
 					this.#pipInitiatedFromOtherTab = false;
 				}
 			}
 		}, 100);
+
+		#onWindowBlur = () => {
+			this.#isWindowFocused = false;
+			this.#applyActiveState();
+		};
+
+		#onWindowFocus = () => {
+			this.#isWindowFocused = true;
+			this.#applyActiveState();
+		};
 
 		setupMediaSession() {
 			if ("mediaSession" in navigator) {
@@ -530,7 +547,9 @@
 				this.#eventListeners.add({ target, event, handler });
 			};
 
-			addListener(document, "visibilitychange", this.#handleVisibilityChange);
+			addListener(document, "visibilitychange", this.#applyActiveState);
+			addListener(window, "blur", this.#onWindowBlur);
+			addListener(window, "focus", this.#onWindowFocus);
 
 			if (window.location.hostname.includes("bilibili.com")) {
 				this.#installBilibiliNavigationWatch(addListener);
@@ -586,7 +605,7 @@
 
 			// Force immediate visibility check and PiP attempt
 			setTimeout(() => {
-				this.#isTabActive = !document.hidden;
+				this.#isTabActive = this.#computeActive();
 				if (!this.#isTabActive) {
 					this.getVideoElement().then((video) => {
 						if (video && this.isVideoPlaying(video)) {
