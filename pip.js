@@ -55,7 +55,6 @@
 	}
 
 	class BrowserDetector {
-		static #cachedResults = new Map();
 		static #browserInfo = null;
 
 		static #initBrowserInfo() {
@@ -67,8 +66,6 @@
 					window.navigator.brave?.isBrave ||
 					ua.includes("Brave") ||
 					document.documentElement.dataset.browserType === "brave",
-				isFirefox: ua.includes("Firefox"),
-				supportsDocumentPiP: "documentPictureInPicture" in window,
 			};
 			this.#browserInfo.isChrome =
 				ua.includes("Chrome") &&
@@ -78,13 +75,6 @@
 				this.#browserInfo.isChrome ||
 				this.#browserInfo.isEdge ||
 				this.#browserInfo.isBrave;
-		}
-
-		static #getCachedValue(key, computeValue) {
-			if (!this.#cachedResults.has(key)) {
-				this.#cachedResults.set(key, computeValue());
-			}
-			return this.#cachedResults.get(key);
 		}
 
 		static get isEdge() {
@@ -97,35 +87,9 @@
 			return this.#browserInfo.isBrave;
 		}
 
-		static get isChrome() {
-			this.#initBrowserInfo();
-			return this.#browserInfo.isChrome;
-		}
-
-		static get isFirefox() {
-			this.#initBrowserInfo();
-			return this.#browserInfo.isFirefox;
-		}
-
 		static get isChromiumBased() {
 			this.#initBrowserInfo();
 			return this.#browserInfo.isChromiumBased;
-		}
-
-		static get supportsPictureInPicture() {
-			return this.#getCachedValue(
-				"supportsPictureInPicture",
-				() =>
-					document.pictureInPictureEnabled ||
-					document.documentElement.webkitSupportsPresentationMode?.(
-						"picture-in-picture"
-					)
-			);
-		}
-
-		static get supportsDocumentPiP() {
-			this.#initBrowserInfo();
-			return this.#browserInfo.supportsDocumentPiP;
 		}
 	}
 
