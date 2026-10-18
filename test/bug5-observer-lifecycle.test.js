@@ -41,6 +41,68 @@ function assertNoErrors(world) {
 
 module.exports = {
 	register(t) {
+		for (const site of [YOUTUBE, BILIBILI]) {
+			t.test(`${site.host}: connected mutations schedule no timers, later replacement is discovered`, async () => {
+				const world = await boot(site);
+				const v1 = world.videos[0];
+				await lock(world);
+				if (site === BILIBILI) {
+					world.history.pushState({}, "", "/video/same-player");
+					await world.tick(300);
+				} else {
+					world.userEnterPip(v1);
+					world.userLeavePip();
+				}
+				assert.equal(observer(world).observed, true);
+				let scheduled = 0;
+				const schedule = world.sandbox.setTimeout;
+				world.sandbox.setTimeout = (...args) => {
+					scheduled++;
+					return schedule(...args);
+				};
+				const before = world.querySelectorCalls;
+				for (let i = 0; i < 100; i++) {
+					world.flushMutations();
+					await world.tick(250);
+				}
+				assert.equal(scheduled, 0, "a connected cached video needs no debounce timer");
+				assert.equal(world.querySelectorCalls, before);
+				assert.equal(observer(world).observed, true, "keep watching for removal");
+
+				const v2 = world.createVideo({ selectors: site.selectors, playing: true });
+				world.swapVideo(v2);
+				assert.equal(scheduled, 1);
+				await world.tick(199);
+				assert.equal(world.querySelectorCalls, before, "preserve the 200ms discovery debounce");
+				await world.tick(1);
+				assert.equal(observer(world).observed, false);
+				assert.equal(world.listeners(v1, "leavepictureinpicture"), 0);
+				assert.equal(world.listeners(v2, "leavepictureinpicture"), 1);
+				world.setHidden(true);
+				await world.tick(300);
+				assert.equal(world.document.pictureInPictureElement, v2);
+				assertNoErrors(world);
+			});
+		}
+
+		t.test("queued discovery ignores a cached video reconnected before the debounce fires", async () => {
+			const world = await boot(YOUTUBE);
+			const v1 = world.videos[0];
+			world.setHidden(true);
+			await world.tick(600);
+			world.userLeavePip();
+			world.detach(v1);
+			world.flushMutations();
+			world.attach(v1);
+			world.flushMutations();
+			const before = world.querySelectorCalls;
+			await world.tick(200);
+			assert.equal(world.querySelectorCalls, before);
+			assert.equal(world.document.pictureInPictureElement, null, "do not reopen manually closed PiP");
+			assert.equal(world.calls.rPiP[v1], 1);
+			assertNoErrors(world);
+		});
+
 		t.test("observer disconnects after lock and flushMutations becomes a no-op", async () => {
 			const world = await boot(YOUTUBE);
 			const v1 = world.videos[0];

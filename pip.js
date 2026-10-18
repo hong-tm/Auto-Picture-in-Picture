@@ -179,17 +179,18 @@
 		}
 
 		#setupVideoObserver() {
-			this.#videoObserver = new MutationObserver(
-				this.#debounce(() => {
-					if (!this.#lastVideoElement?.isConnected) {
-						this.getVideoElement().then((video) => {
-							if (video && !this.#isTabActive && this.isVideoPlaying(video)) {
-								this.enablePiP(true);
-							}
-						});
-					}
-				}, 200)
-			);
+			const rescan = this.#debounce(() => {
+				if (!this.#lastVideoElement?.isConnected) {
+					this.getVideoElement().then((video) => {
+						if (video && !this.#isTabActive && this.isVideoPlaying(video)) {
+							this.enablePiP(true);
+						}
+					});
+				}
+			}, 200);
+			this.#videoObserver = new MutationObserver(() => {
+				if (!this.#lastVideoElement?.isConnected) rescan();
+			});
 
 			this.#videoObserver.observe(document.documentElement, {
 				childList: true,
