@@ -607,11 +607,11 @@
 		pipController.initialize();
 	}
 
-	// Cleanup on unload
+	// Cleanup after a real page leave, but keep the controller for bfcache.
 	window.addEventListener(
-		"unload",
-		() => {
-			pipController.cleanup();
+		"pagehide",
+		(event) => {
+			if (!event.persisted) pipController.cleanup();
 		},
 		{ passive: true }
 	);

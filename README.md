@@ -50,6 +50,7 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 ### v1.5.0
 
 - Switching to another window now enters PiP, not only switching tabs. The active state combines tab visibility with window focus (a new `window` `blur`/`focus` listener alongside `visibilitychange`), so a window switch during playback triggers auto PiP the same way a tab switch does. Fixes issue #4.
+- Cleanup now runs on `pagehide` when the page leaves normally and is skipped for bfcache entries, so returning to a cached page keeps the controller active.
 
 ### v1.4.1
 

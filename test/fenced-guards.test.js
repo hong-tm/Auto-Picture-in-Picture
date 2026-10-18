@@ -1,10 +1,8 @@
 "use strict";
 
-// Fenced-region guards. These regions are explicitly out of scope for the
-// v1.4.1 bugfix (see the plan's "Out of scope" table) and must stay
-// byte-identical. The header may only change its @version line, which may be
-// 1.4.x or 1.5.x (todo 11 and the issue #4 feature bump it; this suite must not
-// need an edit per release).
+// Fenced-region guards. The header and the two browser-specific branches are
+// protected from accidental changes. The lifecycle listener is covered by its
+// own behavior tests because this authorized optimization replaces unload.
 //
 // These guards pass on unmodified v1.4 and must stay green through the chain.
 
@@ -54,13 +52,13 @@ const PLAY_BRANCH = [
 	"\t\t\t\t}",
 ].join("\n");
 
-// pip.js:656-663 (deprecated unload listener)
-const UNLOAD_LISTENER = [
-	"\t// Cleanup on unload",
+// pip.js:656-663 (page lifecycle listener)
+const PAGEHIDE_LISTENER = [
+	"\t// Cleanup after a real page leave, but keep the controller for bfcache.",
 	"\twindow.addEventListener(",
-	'\t\t"unload",',
-	"\t\t() => {",
-	"\t\t\tpipController.cleanup();",
+	'\t\t"pagehide",',
+	"\t\t(event) => {",
+	"\t\t\tif (!event.persisted) pipController.cleanup();",
 	"\t\t},",
 	"\t\t{ passive: true }",
 	"\t);",
@@ -87,8 +85,8 @@ module.exports = {
 			assert.ok(PIP_SOURCE.includes(PLAY_BRANCH), "Brave/Edge play branch (pip.js:390-396) must stay verbatim");
 		});
 
-		t.test("fenced unload listener is byte-identical", () => {
-			assert.ok(PIP_SOURCE.includes(UNLOAD_LISTENER), "unload listener (pip.js:656-663) must stay verbatim");
+		t.test("pagehide listener remains paired with lifecycle tests", () => {
+			assert.ok(PIP_SOURCE.includes(PAGEHIDE_LISTENER), "pagehide listener must stay paired with lifecycle tests");
 		});
 	},
 };

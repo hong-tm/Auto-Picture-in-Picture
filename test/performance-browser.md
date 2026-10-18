@@ -4,6 +4,8 @@ Measured on `perf/optimize-pipjs`, starting at
 `d6ee04e0f9ce1ecf1a4afbd714e24e4feaa38ff8`. This report supersedes the
 unverified `/tmp/gnhf-interrupted-performance-browser.md` draft. The implementation
 and `test/performance-browser.js` now exist and reproduce its size and count claims.
+The current source also uses `pagehide` cleanup with a bfcache guard, covered by
+`test/page-lifecycle.test.js`.
 
 ## Reference evidence
 
@@ -48,7 +50,7 @@ startup Map assertion. After deletion, all probe assertions passed.
 
 | Measurement | Before | After |
 | --- | ---: | ---: |
-| Source bytes | 16859 | 15953 |
+| Source bytes | 16859 | 16034 |
 | Userscript Map constructions at startup | 2 | 1 |
 | UA includes calls at first detection | 4 | 3 |
 
@@ -56,11 +58,12 @@ Before SHA-256:
 `d50e66972df005007e21f6309665de6963b036d65c95a49170d29c45de46618c`
 
 After SHA-256:
-`39bc343a3e31174292ea98852037b6d20acfc5915fe8a484efe8234ca9092947`
+`bcb085d1dc3a7645da6b80df8074cf6bcb0438cfc8640dc24cf50a6a6987f432`
 
-The 906-byte deletion puts production source 455 bytes below the original
-16408-byte baseline. The runtime savings are one startup Map allocation and
-one first-detection string check. These are operation counts, not CPU claims.
+The 906-byte deletion plus the 81-byte lifecycle change puts production source
+374 bytes below the original 16408-byte baseline. The runtime savings are one
+startup Map allocation and one first-detection string check. These are operation
+counts, not CPU claims.
 
 The probe covers `Chrome/120`, `Chrome/120 Edg/120`, `Chrome/120 Brave`,
 `Firefox/120`, and `Safari/17` independently. Each checks automatic PiP entry,
@@ -91,8 +94,9 @@ makes three attempts. All ten rows match the previously recorded runtime counts.
 
 ## Verification limits and remaining work
 
-`node test/run.js` passed 43 tests with zero failures. Both performance probes,
-both syntax checks, and `git diff --check` exited 0. The new probe has no LSP
+`node test/run.js` passed 45 tests with zero failures, including two pagehide
+lifecycle tests. Both performance probes, both syntax checks, and
+`git diff --check` exited 0. The new probe has no LSP
 error diagnostics; LSP diagnostics for `pip.js` timed out, so no clean LSP claim
 is made for that file. There is no configured build, linter, or formatter.
 
@@ -101,13 +105,20 @@ for Safari. It does not exercise Safari presentation mode or actual browser
 engines. No real YouTube/Bilibili pages or fixture browser lane were visited.
 No servers or browsers were started, and all validation processes exited.
 
-There is no intended user-visible behavior change, so paired README changelogs
-and metadata remain unchanged. The existing source fences pass unchanged.
-Evaluation of the three authorized regions remains for the next iteration:
-the uninvoked `navigator.brave?.isBrave` function truthiness, the Brave/Edge
-focus/play workaround, and unload cleanup with bfcache restoration accounted
-for if pagehide is introduced. This slice does not claim the full stop condition.
+The paired README changelogs record the pagehide lifecycle behavior; metadata
+remains unchanged. The Brave detection block and Brave/Edge focus/play branch
+remain byte-identical. `navigator.brave?.isBrave` is exposed as a function in
+the current harness, so its object truthiness is intentional synchronous
+detection; calling it would require an asynchronous state change and is not
+compatible with the synchronous browser cache initialization. The focus/play
+workaround remains because the existing VM matrix preserves its call counts but
+does not prove or disprove the browser-specific behavior in real Brave or Edge.
+The deprecated unload listener was replaced with pagehide cleanup. A persisted
+pagehide keeps listeners and the observer for bfcache restoration; a normal
+pagehide calls `cleanup()`.
 
 No commit was made by this worker. Suggested orchestrator subject:
 
 `perf(browser): remove unused detector members, 16859 to 15953 bytes`
+
+`perf(lifecycle): preserve controller across bfcache pagehide`
