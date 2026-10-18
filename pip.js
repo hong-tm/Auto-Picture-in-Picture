@@ -139,6 +139,7 @@
 		#pipEventVideo = null;
 		#videoObserver = null;
 		#observerActive = false;
+		#videoDiscovery = null;
 		#biliNavWrapped = false;
 		#eventListeners = new Set();
 		#debounceTimers = new Map();
@@ -285,6 +286,18 @@
 			if (this.#lastVideoElement?.isConnected) {
 				return this.#lastVideoElement;
 			}
+			if (this.#videoDiscovery) return this.#videoDiscovery;
+
+			const discovery = this.#findVideoElement(retryCount, maxRetries);
+			this.#videoDiscovery = discovery;
+			try {
+				return await discovery;
+			} finally {
+				if (this.#videoDiscovery === discovery) this.#videoDiscovery = null;
+			}
+		}
+
+		async #findVideoElement(retryCount, maxRetries) {
 
 			const domain = Object.keys(VideoController.VIDEO_SELECTORS).find((d) =>
 				window.location.hostname.includes(d)
@@ -313,7 +326,7 @@
 				await new Promise((resolve) =>
 					setTimeout(resolve, Math.min(200 * (retryCount + 1), 1000))
 				);
-				return this.getVideoElement(retryCount + 1, maxRetries);
+				return this.#findVideoElement(retryCount + 1, maxRetries);
 			}
 
 			Logger.log(
