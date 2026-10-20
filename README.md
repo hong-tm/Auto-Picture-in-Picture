@@ -37,6 +37,7 @@
 - [Technical Implementation](#technical-implementation)
 - [Project Statistics](#project-statistics)
 - [Resources](#resources)
+- [Known limitations](#known-limitations)
 - [Support](#support)
 
 ## Overview
@@ -44,6 +45,27 @@
 An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode for YouTube and Bilibili videos. This script provides a seamless video-watching experience across multiple browsers, enhancing the native PiP functionality with additional features and broader compatibility.
 
 > **Note**: Many browsers now offer native Auto PiP features in beta/experimental mode.
+
+## Changelog
+
+### v1.5.1
+
+- Visible pages no longer enter PiP on window blur, avoiding unwanted popups when using a second monitor. Automatic requests follow page visibility; app switches that keep the page visible do not trigger them.
+- A rejected PiP request no longer marks PiP as active or blocks later requests. The real browser error is reported. Chromium may require user activation or a browser-provided automatic PiP action; registering Media Session does not bypass this requirement.
+- Trigger timing is tighter: a request with active user activation starts immediately, return-to-page exit is not delayed by the old debounce, pending requests are coalesced, and stale hidden requests are cancelled when playback stops or the page becomes visible.
+
+### v1.5.0
+
+- Switching to another window now enters PiP, not only switching tabs. The active state combines tab visibility with window focus (a new `window` `blur`/`focus` listener alongside `visibilitychange`), so a window switch during playback triggers auto PiP the same way a tab switch does. Fixes issue #4.
+- Cleanup now runs on `pagehide` when the page leaves normally and is skipped for bfcache entries, so returning to a cached page keeps the controller active.
+
+### v1.4.1
+
+- PiP enter and leave events are now tracked on the video element instead of the document. That matches the API spec and keeps state tracking correct on engines that do not bubble these events.
+- Switching videos inside Bilibili keeps auto PiP working. The script watches the site's in-page navigation, locks the new video, and re-enters PiP when the tab is hidden.
+- The DOM observer stops once a video is locked, so the script does less work while a video plays.
+- Removed dead code and the call to `mediaSession.setAutoplayPolicy`, an API no browser ships.
+- The regression suite runs with `node test/run.js`.
 
 ## Key Features
 
@@ -110,6 +132,12 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 
 </details>
 
+> **Important:** The script can register the Media Session handler and attempt a request, but it cannot grant Chrome's automatic PiP permission. If Chrome rejects a request with `NotAllowedError`, enabling more retries or calling the handler directly cannot create a user gesture.
+>
+> `#auto-picture-in-picture-on-window-occluded` controls automatic PiP when another window fully covers Chrome. `#browser-initiated-automatic-picture-in-picture` lets Chrome open standard video PiP when a site has no `enterpictureinpicture` handler. These flags are separate. If you enable either native path, test the browser behavior with the userscript disabled first.
+>
+> With all flags left at `Default`, the userscript still keeps its own fallback path. Chrome may require a fresh click for a later direct request, especially for window minimization.
+
 ### Firefox Setup
 
 <details open>
@@ -161,6 +189,13 @@ Required for userscript installation in all browsers
 ![PiP Implementation](https://github.com/user-attachments/assets/0a4740d9-088a-4f07-a702-6baa55f66dc6)
 
 </details>
+
+## Known limitations
+
+- The script does not control Chrome flags or site permissions.
+- Chrome may allow the first PiP request after a click and reject later direct requests after the transient activation expires.
+- The official Media Session automatic PiP path works only when Chrome decides the page is eligible and provides its PiP request token.
+- Window minimization and window occlusion are separate browser states. The script can observe page visibility, but a userscript cannot force Chrome to grant automatic PiP authorization for every minimized-window cycle.
 
 ## Technical Implementation
 
