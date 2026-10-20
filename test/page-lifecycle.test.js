@@ -22,7 +22,7 @@ module.exports = {
 			assert.equal(world.listeners(world.window, "focus"), 1);
 			assert.equal(world.listeners(world.document, "visibilitychange"), 1);
 
-			world.setWindowFocused(false);
+			world.setHidden(true);
 			await world.tick(600);
 			assert.equal(world.document.pictureInPictureElement, world.videos[0]);
 			assert.equal(world.errors.length, 0, world.errors.join(" | "));

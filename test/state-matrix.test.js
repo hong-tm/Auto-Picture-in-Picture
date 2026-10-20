@@ -110,7 +110,7 @@ module.exports = {
 			assertNoErrors(world);
 		});
 
-		t.test("R3 youtube/script/visible/manual-close", async () => {
+		t.test("R3 youtube/script/visible/auto-exit", async () => {
 			const world = await boot(YOUTUBE);
 			const v1 = world.videos[0];
 			await discover(world);
@@ -123,8 +123,8 @@ module.exports = {
 			await world.tick(300);
 			assert.equal(
 				world.calls.exit,
-				0,
-				"show must not exit when the PiP was initiated from the other tab (code-as-written)"
+				1,
+				"show must exit an automatically initiated PiP"
 			);
 
 			world.userLeavePip();
@@ -134,7 +134,7 @@ module.exports = {
 			assertNoErrors(world);
 		});
 
-		t.test("R4 bilibili/script/visible/SPA-switch", async () => {
+		t.test("R4 bilibili/script/visible/auto-exit", async () => {
 			const world = await boot(BILIBILI);
 			const v1 = world.videos[0];
 			await discover(world);
@@ -145,7 +145,7 @@ module.exports = {
 
 			world.setHidden(false);
 			await world.tick(300);
-			assert.equal(world.calls.exit, 0, "show must not exit a cross-tab-initiated PiP");
+			assert.equal(world.calls.exit, 1, "show must exit a cross-tab-initiated PiP");
 
 			const v2 = newPlayingVideo(world, BILIBILI);
 			await spaSwitch(world, v2);

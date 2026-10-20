@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto Picture-in-Picture
 // @namespace    http://tampermonkey.net/
-// @version      1.5.0
+// @version      1.5.1
 // @description  Automatically enables picture-in-picture mode for YouTube and Bilibili with improved Edge and Brave support
 // @author       hong-tm
 // @license      MIT
@@ -97,6 +97,8 @@
 		#isTabActive = !document.hidden;
 		#isWindowFocused = true;
 		#isPiPRequested = false;
+		#entryPending = false;
+		#hiddenTimer = null;
 		#pipInitiatedFromOtherTab = false;
 		#pipAttempts = 0;
 		#lastVideoElement = null;
@@ -321,13 +323,6 @@
 				// Setup media session for automatic PiP
 				if ("mediaSession" in navigator) {
 					try {
-						navigator.mediaSession.setActionHandler(
-							"enterpictureinpicture",
-							async () => {
-								await video.requestPictureInPicture().catch(() => {});
-							}
-						);
-
 						// Set media session metadata for better system integration
 						navigator.mediaSession.metadata = new MediaMetadata({
 							title: document.title,
@@ -361,15 +356,10 @@
 						this.#pipAttempts = 0;
 						return true;
 					} catch (e) {
-						// If direct PiP request fails, try using media session
+						// A media-session handler does not mean PiP opened.
 						if ("mediaSession" in navigator) {
-							navigator.mediaSession.metadata = new MediaMetadata({
-								title: document.title,
-							});
-							Logger.log("Attempting automatic PiP via media session");
-							// Re-evaluate the active state to trigger PiP
-							this.#applyActiveState();
-							return true;
+							Logger.error("PiP request rejected:", e.name, e.message);
+							return false;
 						}
 						throw e;
 					}
@@ -399,28 +389,33 @@
 			}
 		}
 
-		async enablePiP(forceEnable = false) {
+		async enablePiP(forceEnable = false, browserAction = false) {
+			if (this.#entryPending || document.pictureInPictureElement || this.#isPiPRequested) return;
+			this.#entryPending = true;
+			const startedHidden = document.hidden;
 			try {
-				const video = await this.getVideoElement();
-				if (!video || (!forceEnable && !this.isVideoPlaying(video))) {
-					Logger.log("Video not ready for PiP");
-					return;
-				}
-
-				if (!document.pictureInPictureElement && !this.#isPiPRequested) {
-					const success = await this.requestPictureInPicture(video);
-					if (success) {
-						this.#isPiPRequested = true;
-						this.#pipInitiatedFromOtherTab = !this.#isTabActive;
+				const video = this.#lastVideoElement?.isConnected
+					? this.#lastVideoElement : await this.getVideoElement();
+				if ((!browserAction && !document.hidden) || !video ||
+					(!forceEnable && !this.isVideoPlaying(video))) return;
+				const success = await this.requestPictureInPicture(video);
+				if (success) {
+					if (startedHidden && !document.hidden) {
+						await this.disablePiP(true);
+						return;
 					}
+					this.#isPiPRequested = !!document.pictureInPictureElement;
+					this.#pipInitiatedFromOtherTab = !this.#isTabActive;
 				}
 			} catch (error) {
 				Logger.error("Enable PiP error:", error);
+			} finally {
+				this.#entryPending = false;
 			}
 		}
 
-		async disablePiP() {
-			if (document.pictureInPictureElement && !this.#pipInitiatedFromOtherTab) {
+		async disablePiP(force = false) {
+			if (document.pictureInPictureElement && (force || !this.#pipInitiatedFromOtherTab)) {
 				try {
 					await document.exitPictureInPicture();
 					Logger.log("PiP mode exited");
@@ -451,31 +446,23 @@
 			return !document.hidden && this.#isWindowFocused;
 		}
 
-		#applyActiveState = this.#debounce(async () => {
-			const previousState = this.#isTabActive;
+		#applyActiveState = () => {
+			const wasActive = this.#isTabActive;
 			this.#isTabActive = this.#computeActive();
-			Logger.log(
-				`Active state changed: ${this.#isTabActive ? "active" : "inactive"}`
-			);
+			clearTimeout(this.#hiddenTimer);
+			this.#hiddenTimer = null;
 			if (!this.#lastVideoElement?.isConnected) this.#setVideoObserverActive(true);
-
-			if (previousState !== this.#isTabActive) {
-				if (this.#isTabActive) {
-					if (!this.#pipInitiatedFromOtherTab) {
-						await this.disablePiP();
-					}
-				} else {
-					const video = await this.getVideoElement();
-					if (video && this.isVideoPlaying(video)) {
-						const delay = BrowserDetector.isChromiumBased ? 200 : 0;
-						setTimeout(() => {
-							if (!this.#isTabActive) this.enablePiP(true);
-						}, delay);
-					}
-					this.#pipInitiatedFromOtherTab = false;
-				}
+			if (this.#isTabActive) {
+				this.disablePiP(true);
+			} else if (wasActive && navigator.userActivation?.isActive) {
+				this.enablePiP();
+			} else {
+				this.#hiddenTimer = setTimeout(() => {
+					this.#hiddenTimer = null;
+					if (!this.#isTabActive) this.enablePiP();
+				}, BrowserDetector.isChromiumBased ? 300 : 100);
 			}
-		}, 100);
+		};
 
 		#onWindowBlur = () => {
 			this.#isWindowFocused = false;
@@ -493,11 +480,11 @@
 					navigator.mediaSession.setActionHandler(
 						"enterpictureinpicture",
 						async () => {
-							if (!this.#isTabActive) {
-								await this.enablePiP(true);
-							}
+							Logger.log("Media session enterpictureinpicture action");
+							await this.enablePiP(true, true);
 						}
 					);
+					Logger.log("Media session enterpictureinpicture handler registered");
 
 					["play", "pause", "seekbackward", "seekforward"].forEach((action) => {
 						try {
@@ -549,6 +536,8 @@
 		}
 
 		cleanup() {
+			clearTimeout(this.#hiddenTimer);
+			this.#hiddenTimer = null;
 			this.#eventListeners.forEach(({ target, event, handler }) => {
 				target.removeEventListener(event, handler);
 			});

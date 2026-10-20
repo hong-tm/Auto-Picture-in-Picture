@@ -18,7 +18,7 @@ const before = execFileSync("git", ["show", `${beforeRevision}:pip.js`], {
 const after = fs.readFileSync(path.join(root, "pip.js"), "utf8");
 const harness = fs.readFileSync(path.join(__dirname, "harness.js"), "utf8");
 
-async function measure(source, ua) {
+async function measure(source, ua, exitsOnRestore) {
 	let maps = 0;
 	const checks = [];
 	const harnessModule = { exports: {} };
@@ -59,14 +59,14 @@ async function measure(source, ua) {
 	assert.equal(world.document.pictureInPictureElement, world.videos[0], ua);
 	world.setHidden(false);
 	await world.tick(100);
-	assert.equal(world.document.pictureInPictureElement, world.videos[0], ua);
+	assert.equal(world.document.pictureInPictureElement, exitsOnRestore ? null : world.videos[0], ua);
 	world.userLeavePip();
 	world.flushMutations();
 	world.window.dispatch("focus");
 	await world.tick(1000);
 	assert.equal(world.document.pictureInPictureElement, null, ua);
 	assert.equal(world.calls.rPiP[world.videos[0]], 1, ua);
-	assert.equal(world.calls.exit, 0, ua);
+	assert.equal(world.calls.exit, exitsOnRestore ? 1 : 0, ua);
 	assert.equal(world.errors.length, 0, world.errors.join("\n"));
 	return {
 		ua,
@@ -88,18 +88,16 @@ function identity(source) {
 async function main() {
 	const results = [];
 	for (const ua of ["Chrome/120", "Chrome/120 Edg/120", "Chrome/120 Brave", "Firefox/120", "Safari/17"]) {
-		const previous = await measure(before, ua);
-		const current = await measure(after, ua);
+		const previous = await measure(before, ua, false);
+		const current = await measure(after, ua, true);
 		assert.equal(previous.startupMaps, 2);
 		assert.equal(current.startupMaps, 1);
 		assert.deepEqual(previous.checks, ["Edg/", "Brave", "Firefox", "Chrome"]);
 		assert.deepEqual(current.checks, ["Edg/", "Brave", "Chrome"]);
 		assert.equal(current.focusCalls, /Edg\/|Brave/.test(ua) ? 1 : 0);
-		assert.deepEqual(current, {
-			...previous,
-			startupMaps: 1,
-			checks: ["Edg/", "Brave", "Chrome"],
-		});
+		assert.equal(current.focusCalls, previous.focusCalls);
+		assert.equal(current.playCalls, previous.playCalls);
+		assert.equal(current.pipRequests, previous.pipRequests);
 		results.push({ before: previous, after: current });
 	}
 	assert.ok(Buffer.byteLength(after) < 16408);
