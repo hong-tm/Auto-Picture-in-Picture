@@ -48,6 +48,8 @@ module.exports = { register(t) {
 		await Promise.all([first, second]);
 		w.setHidden(false);
 		await w.tick(0);
+		assert.equal(w.calls.exit, 0);
+		w.userLeavePip();
 		video.requestPictureInPicture = original;
 		await handler();
 		assert.equal(w.calls.rPiP[video], 2);

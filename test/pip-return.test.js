@@ -26,7 +26,7 @@ module.exports = { register(t) {
 		assert.equal(w.calls.exit, 1);
 	});
 
-	t.test("browser entry begun before hidden is closed if it settles after return", async () => {
+	t.test("late browser entry leaves closure to the browser after return", async () => {
 		const w = await ready();
 		const video = w.videos[0];
 		const original = video.requestPictureInPicture;
@@ -40,8 +40,10 @@ module.exports = { register(t) {
 		w.setHidden(false);
 		settle();
 		await pending;
+		assert.equal(w.document.pictureInPictureElement, video);
+		assert.equal(w.calls.exit, 0);
+		w.userLeavePip();
 		assert.equal(w.document.pictureInPictureElement, null);
-		assert.equal(w.calls.exit, 1);
 	});
 
 	t.test("Shorts picks the active video instead of a connected cached Short", async () => {
@@ -61,6 +63,8 @@ module.exports = { register(t) {
 		w.setHidden(true);
 		w.setHidden(false);
 		await w.tick(0);
+		assert.equal(w.calls.exit, 0);
+		w.userLeavePip();
 		assert.equal(w.document.pictureInPictureElement, null);
 	});
 

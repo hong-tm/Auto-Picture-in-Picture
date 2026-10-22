@@ -242,7 +242,9 @@ module.exports = {
 
 			world.setHidden(false);
 			await world.tick(400);
-			assert.equal(world.calls.exit, 1, "restore must still exit auto PiP");
+			assert.equal(world.calls.exit, 0, "browser-owned PiP must not receive a competing exit");
+			world.userLeavePip();
+			assert.equal(world.document.pictureInPictureElement, null);
 			assertNoErrors(world);
 		});
 
@@ -287,9 +289,11 @@ module.exports = {
 
 				world.setHidden(false);
 				await world.tick(400);
+				assert.equal(world.calls.exit, 0, "return must leave browser-owned closure to the browser");
+				world.userLeavePip();
 				assert.equal(world.document.pictureInPictureElement, null, "cycle " + cycle + " must exit on return");
 			}
-			assert.equal(world.calls.exit, 3, "every return must exit exactly once");
+			assert.equal(world.calls.exit, 0, "no duplicate script exits during browser-triggered cycles");
 			assert.equal(rPiP(world, v1), 3, "every cycle must issue exactly one granted request");
 		});
 

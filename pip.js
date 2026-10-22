@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto Picture-in-Picture
 // @namespace    http://tampermonkey.net/
-// @version      1.5.2
+// @version      1.5.3
 // @description  Automatically enables picture-in-picture mode for YouTube and Bilibili with improved Edge and Brave support
 // @author       hong-tm
 // @license      MIT
@@ -100,7 +100,7 @@
 		#entryPending = false;
 		#resume = 0;
 		#hiddenTimer = null;
-		#pipInitiatedFromOtherTab = false;
+		#browserPiP = false;
 		#pipAttempts = 0;
 		#lastVideoElement = null;
 		#pipEventVideo = null;
@@ -397,6 +397,7 @@
 		async enablePiP(forceEnable = false, browserAction = false) {
 			if (this.#entryPending || document.pictureInPictureElement || this.#isPiPRequested) return;
 			this.#entryPending = true;
+			this.#browserPiP = browserAction;
 			const id = this.#resume;
 			try {
 				const video = this.#lastVideoElement?.isConnected && !this.#shorts()
@@ -406,21 +407,22 @@
 				const success = await this.requestPictureInPicture(video);
 				if (success) {
 					if (!document.hidden && id !== this.#resume) {
-						await this.disablePiP(true);
+						await this.disablePiP();
 						return;
 					}
 					this.#isPiPRequested = !!document.pictureInPictureElement;
-					this.#pipInitiatedFromOtherTab = !this.#isTabActive;
 				}
 			} catch (error) {
 				Logger.error("Enable PiP error:", error);
 			} finally {
 				this.#entryPending = false;
+				if (!document.pictureInPictureElement) this.#browserPiP = false;
 			}
 		}
 
-		async disablePiP(force = false) {
-			if (document.pictureInPictureElement && (force || !this.#pipInitiatedFromOtherTab)) {
+		async disablePiP() {
+			// Browser-triggered auto PiP closes through the browser's return path.
+			if (document.pictureInPictureElement && !this.#browserPiP) {
 				try {
 					await document.exitPictureInPicture();
 					Logger.log("PiP mode exited");
@@ -433,7 +435,6 @@
 		}
 
 		#onEnterPiP = () => {
-			this.#pipInitiatedFromOtherTab = !this.#isTabActive;
 			this.#isPiPRequested = true;
 			this.#pipAttempts = 0;
 			Logger.log("Entered PiP mode");
@@ -441,7 +442,7 @@
 
 		#onLeavePiP = () => {
 			this.#isPiPRequested = false;
-			this.#pipInitiatedFromOtherTab = false;
+			this.#browserPiP = false;
 			this.#pipAttempts = 0;
 			this.#setVideoObserverActive(true);
 			Logger.log("Left PiP mode");
@@ -459,7 +460,7 @@
 			if (!this.#lastVideoElement?.isConnected) this.#setVideoObserverActive(true);
 			if (!document.hidden && (this.#isTabActive || event?.type === "visibilitychange")) {
 				this.#resume++;
-				this.disablePiP(true);
+				this.disablePiP();
 			} else if (wasActive && navigator.userActivation?.isActive) {
 				this.enablePiP();
 			} else {
