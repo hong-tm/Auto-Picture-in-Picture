@@ -48,6 +48,11 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 
 ## Changelog
 
+### v1.5.2
+
+- Returning to a visible page exits PiP even before window focus returns. Pending PiP requests that finish after the return are also closed.
+- YouTube Shorts selects the current player instead of a cached video from an earlier Short. Navigating while PiP is open preserves its leave listener so closing PiP does not block later requests.
+
 ### v1.5.1
 
 - Visible pages no longer enter PiP on window blur, avoiding unwanted popups when using a second monitor. Automatic requests follow page visibility; app switches that keep the page visible do not trigger them.
