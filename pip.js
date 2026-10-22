@@ -98,6 +98,7 @@
 		#isWindowFocused = true;
 		#isPiPRequested = false;
 		#entryPending = false;
+		#resume = 0;
 		#hiddenTimer = null;
 		#pipInitiatedFromOtherTab = false;
 		#pipAttempts = 0;
@@ -249,7 +250,7 @@
 		}
 
 		async getVideoElement(retryCount = 0, maxRetries = 5) {
-			if (this.#lastVideoElement?.isConnected) {
+			if (this.#lastVideoElement?.isConnected && !this.#shorts()) {
 				return this.#lastVideoElement;
 			}
 			if (this.#videoDiscovery) return this.#videoDiscovery;
@@ -263,8 +264,12 @@
 			}
 		}
 
-		async #findVideoElement(retryCount, maxRetries) {
+		#shorts() {
+			return location.hostname.includes("youtube.com") &&
+				location.pathname.startsWith("/shorts/");
+		}
 
+		async #findVideoElement(retryCount, maxRetries) {
 			const domain = Object.keys(VideoController.VIDEO_SELECTORS).find((d) =>
 				window.location.hostname.includes(d)
 			);
@@ -273,7 +278,10 @@
 			}
 
 			let video = null;
-			for (const selector of VideoController.VIDEO_SELECTORS[domain]) {
+			const selectors = this.#shorts()
+				? ["ytd-reel-video-renderer[is-active] video", "#shorts-player video"]
+				: VideoController.VIDEO_SELECTORS[domain];
+			for (const selector of selectors) {
 				video = document.querySelector(selector);
 				if (video) {
 					this.#lastVideoElement = video;
@@ -392,15 +400,15 @@
 		async enablePiP(forceEnable = false, browserAction = false) {
 			if (this.#entryPending || document.pictureInPictureElement || this.#isPiPRequested) return;
 			this.#entryPending = true;
-			const startedHidden = document.hidden;
+			const id = this.#resume;
 			try {
-				const video = this.#lastVideoElement?.isConnected
+				const video = this.#lastVideoElement?.isConnected && !this.#shorts()
 					? this.#lastVideoElement : await this.getVideoElement();
 				if ((!browserAction && !document.hidden) || !video ||
 					(!forceEnable && !this.isVideoPlaying(video))) return;
 				const success = await this.requestPictureInPicture(video);
 				if (success) {
-					if (startedHidden && !document.hidden) {
+					if (!document.hidden && id !== this.#resume) {
 						await this.disablePiP(true);
 						return;
 					}
@@ -446,13 +454,14 @@
 			return !document.hidden && this.#isWindowFocused;
 		}
 
-		#applyActiveState = () => {
+		#applyActiveState = (event) => {
 			const wasActive = this.#isTabActive;
 			this.#isTabActive = this.#computeActive();
 			clearTimeout(this.#hiddenTimer);
 			this.#hiddenTimer = null;
 			if (!this.#lastVideoElement?.isConnected) this.#setVideoObserverActive(true);
-			if (this.#isTabActive) {
+			if (!document.hidden && (this.#isTabActive || event?.type === "visibilitychange")) {
+				this.#resume++;
 				this.disablePiP(true);
 			} else if (wasActive && navigator.userActivation?.isActive) {
 				this.enablePiP();
