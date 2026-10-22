@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto Picture-in-Picture
 // @namespace    http://tampermonkey.net/
-// @version      1.5.1
+// @version      1.5.2
 // @description  Automatically enables picture-in-picture mode for YouTube and Bilibili with improved Edge and Brave support
 // @author       hong-tm
 // @license      MIT
