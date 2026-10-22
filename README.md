@@ -48,6 +48,10 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 
 ## Changelog
 
+### v1.5.3
+
+- Leave return-to-page closure to the browser for PiP requested through its Media Session action, avoiding a competing script exit. Script-triggered PiP still closes on return. The distinction uses the actual request source, not browser version or flags.
+
 ### v1.5.2
 
 - Returning to a visible page exits PiP even before window focus returns. Pending PiP requests that finish after the return are also closed.
