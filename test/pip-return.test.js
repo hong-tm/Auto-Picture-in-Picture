@@ -76,4 +76,30 @@ module.exports = { register(t) {
 		await handler();
 		assert.equal(w.document.pictureInPictureElement, active);
 	});
+
+	t.test("Shorts navigation keeps the leave listener on the active PiP video", async () => {
+		const w = await ready();
+		const first = w.videos[0];
+		const handler = w.calls.setActionHandler.find(c => c.action === "enterpictureinpicture").handler;
+		await handler();
+		assert.equal(w.document.pictureInPictureElement, first);
+
+		w.location.pathname = "/shorts/second";
+		const next = w.createVideo({
+			selectors: [".html5-main-video", "#shorts-player video"],
+			playing: true,
+		});
+		w.attach(next);
+		w.setHidden(true);
+		w.window.dispatch("yt-navigate-finish", { type: "yt-navigate-finish" });
+		await w.tick(1200);
+		assert.equal(w.document.pictureInPictureElement, first);
+
+		w.userLeavePip();
+		w.setHidden(false);
+		await w.tick(0);
+		w.setHidden(true);
+		await w.tick(600);
+		assert.equal(w.document.pictureInPictureElement, next);
+	});
 } };

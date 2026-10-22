@@ -183,7 +183,7 @@
 		}
 
 		#syncPipListeners() {
-			if (this.#pipEventVideo === this.#lastVideoElement) return;
+			if (document.pictureInPictureElement || this.#pipEventVideo === this.#lastVideoElement) return;
 
 			if (this.#pipEventVideo) {
 				this.#pipEventVideo.removeEventListener(
@@ -196,7 +196,7 @@
 				);
 			}
 
-			if (this.#lastVideoElement && this.#lastVideoElement.isConnected) {
+			if (this.#lastVideoElement?.isConnected) {
 				this.#lastVideoElement.addEventListener(
 					"enterpictureinpicture",
 					this.#onEnterPiP
@@ -265,8 +265,7 @@
 		}
 
 		#shorts() {
-			return location.hostname.includes("youtube.com") &&
-				location.pathname.startsWith("/shorts/");
+			return location.hostname.includes("youtube.com") && location.pathname.startsWith("/shorts/");
 		}
 
 		async #findVideoElement(retryCount, maxRetries) {
@@ -278,9 +277,7 @@
 			}
 
 			let video = null;
-			const selectors = this.#shorts()
-				? ["ytd-reel-video-renderer[is-active] video", "#shorts-player video"]
-				: VideoController.VIDEO_SELECTORS[domain];
+			const selectors = this.#shorts() ? ["ytd-reel-video-renderer[is-active] video", "#shorts-player video"] : VideoController.VIDEO_SELECTORS[domain];
 			for (const selector of selectors) {
 				video = document.querySelector(selector);
 				if (video) {
