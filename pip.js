@@ -533,6 +533,9 @@
 			if (!document.hidden) {
 				this.#resume++;
 				this.#userDismissed = false;
+				// Another tab may have flipped the master switch. Native auto PiP
+				// can fire before visibilitychange, so refresh on return.
+				this.setupMediaSession();
 				this.disablePiP();
 			} else if (navigator.userActivation?.isActive) {
 				this.enablePiP();

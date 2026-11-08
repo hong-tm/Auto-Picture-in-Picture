@@ -15,7 +15,7 @@ Chrome's native Auto PiP (Chrome 134+, gradual rollout, flag `#auto-picture-in-p
 ```
 ./
 ├── pip.js         # entire userscript (659 lines, all logic)
-├── test/          # zero-dependency node:vm harness (test/harness.js) + regression suite; entry `node test/run.js` (109 test cases)
+├── test/          # zero-dependency node:vm harness (test/harness.js) + regression suite; entry `node test/run.js` (110 test cases)
 │                  #   also: performance.js / performance-browser.js (standalone perf scripts) + performance-*.md notes
 │                  #   live-check.js: optional real-browser check (fixtures + live sites) in a CDP isolated world; needs global Playwright
 ├── README.md      # English doc; changelog v1.4 → v1.6.0; Chrome flags documented as optional native paths + minimize guidance
@@ -30,7 +30,7 @@ No build, no bundler, no package.json, no CI. Edits go straight to `pip.js`. `te
 | Task | Location | Notes |
 |------|----------|-------|
 | Add a site | `VideoController.VIDEO_SELECTORS` (~L194) | hostname `includes()` over keys **in insertion order** — a more specific host key (e.g. `"live.bilibili.com"`) must come before the broader one (`"bilibili.com"`), or the broad key matches first. `music.youtube.com` needs no own key: the `youtube.com` selectors match its `#movie_player video`. |
-| Change trigger behavior | `#onVisibilityChange` (~L519) | single trigger entry: hidden + playing → PiP (sync when `userActivation.isActive`, else a 300/100 ms timer), visible → exit. `enablePiP` (~L455) rejects script requests on a visible tab, honors `Settings.enabled` (with the master switch off, `setupMediaSession` registers a null `enterpictureinpicture` handler, re-run from the Menu toggle, because native Auto PiP fires that action too) and `#userDismissed`. `#onVideoPlaying` (~L515) retries when a video starts or resumes while hidden |
+| Change trigger behavior | `#onVisibilityChange` (~L519) | single trigger entry: hidden + playing → PiP (sync when `userActivation.isActive`, else a 300/100 ms timer), visible → exit. `enablePiP` (~L455) rejects script requests on a visible tab, honors `Settings.enabled` (with the master switch off, `setupMediaSession` registers a null `enterpictureinpicture` handler, re-run from the Menu toggle and on every return to the page, because native Auto PiP fires that action too) and `#userDismissed`. `#onVideoPlaying` (~L515) retries when a video starts or resumes while hidden |
 | PiP request + fallbacks | `VideoController.requestPictureInPicture` (~L416) | returns false silently without a PiP API; Brave/Edge focus+play workaround; a rejected request logs quietly and returns false — no retry loop (removed in v1.6.0; every current browser ships `mediaSession`). NotAllowedError without a fresh user gesture is expected on stock Chrome, especially for minimize |
 | Native vs script PiP exit | `#onEnterPiP`/`#onLeavePiP` (~L496/~L504) + request source tracking | a spontaneous `enterpictureinpicture` while hidden with no script request in flight (`!#entryPending && document.hidden`) is browser-owned (native Auto PiP, media controls, site's own player) → `#browserPiP = true`, and `disablePiP` gives the browser a 1 s head start (a competing exit can hang the native close), then exits itself if the page is still visible and PiP still open — the browser does not always close it. A user PiP opened on a *visible* page stays script-closed on return (default; `Settings.closeOnReturn` turns that off) |
 | Menu + settings | `Settings` (~L63), `Menu` (~L104) | `Settings.enabled` / `Settings.closeOnReturn`, defaults true/true, persist as JSON via `GM_getValue/GM_setValue` (key `settings`) with `localStorage` fallback (key `auto-pip-settings`); re-read from storage on every access so other tabs' changes apply. `Menu.setup()` registers/re-registers the two commands when `GM_registerMenuCommand` exists (labels refresh only when `GM_unregisterMenuCommand` also exists) |
@@ -65,7 +65,7 @@ No build, no bundler, no package.json, no CI. Edits go straight to `pip.js`. `te
 - Feature-detect everything (`"x" in navigator`, `typeof GM_getValue === "function"`), swallow errors with `catch {}` + log.
 - Diagnostics gated by top constant `DEBUG` (false in release).
 - Bump `@version` on release; preserve the other userscript header metadata unless the release specifically requires changing it — the fenced-guards header fixture pins every header line (v1.6.0 added `@match music/live.bilibili.com` and four `@grant` lines; the fixture was updated with it).
-- Any `pip.js` change must keep `node test/run.js` green (109 test cases); add a regression test per bugfix.
+- Any `pip.js` change must keep `node test/run.js` green (110 test cases); add a regression test per bugfix.
 
 ## ANTI-PATTERNS (THIS PROJECT)
 
@@ -94,7 +94,7 @@ Only the parts specific to this repo are covered here.
 Checks for this repo:
 
 ```bash
-node test/run.js    # 109 test cases, zero dependencies; runs from the repo root
+node test/run.js    # 110 test cases, zero dependencies; runs from the repo root
 NODE_PATH=<global node_modules> node test/live-check.js    # real Chromium: fixtures + live YouTube/Shorts/Bilibili video/Bilibili live/YouTube Music; add --fixture-only offline
 ```
 

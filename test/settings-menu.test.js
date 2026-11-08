@@ -105,6 +105,18 @@ module.exports = { register(t) {
 		}, "a toggle must not overwrite the other tab's value");
 	});
 
+	t.test("a tab started with the switch off restores the media action on return", async () => {
+		const w = await ready({ settings: { enabled: false } });
+		const last = () => w.calls.setActionHandler
+			.filter((c) => c.action === "enterpictureinpicture")
+			.pop().handler;
+		assert.equal(last(), null);
+		w.setHidden(true);
+		w.gmStore.set("settings", JSON.stringify({ enabled: true, closeOnReturn: true }));
+		w.setHidden(false);
+		assert.equal(typeof last(), "function", "another tab turned it on");
+	});
+
 	t.test("without GM storage, settings load from localStorage", async () => {
 		const w = await ready({ noGM: true, settings: { enabled: false } });
 		assert.deepEqual(w.menu, [], "no GM menu API means no commands");
