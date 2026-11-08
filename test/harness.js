@@ -16,8 +16,10 @@
 //   - document.hidden fires visibilitychange only when the value actually changes.
 //   - window focus is modeled by setWindowFocused(), which dispatches blur/focus on
 //     the sandbox window; blur/focus never bubble.
-//   - detach(video) models the browser: removing a video that is in PiP clears
-//     document.pictureInPictureElement and fires leavepictureinpicture on it.
+//   - detach(video) removes a video that is in PiP, clearing
+//     document.pictureInPictureElement and firing leavepictureinpicture on it.
+//     Real Chromium keeps the removed element as pictureInPictureElement with no
+//     event (seen in test/live-check.js); keepPipOnDetach models that.
 
 const fs = require("node:fs");
 const path = require("node:path");
@@ -89,6 +91,7 @@ function createWorld(options = {}) {
 	const calls = {
 		rPiP: {},
 		exit: 0,
+		menu: [],
 		play: [],
 		focus: [],
 		decodingInfo: [],
@@ -253,6 +256,10 @@ function createWorld(options = {}) {
 		};
 		video.requestPictureInPicture = function () {
 			calls.rPiP[this] = (calls.rPiP[this] || 0) + 1;
+			const previous = document.pictureInPictureElement;
+			if (previous && previous !== this) {
+				previous.dispatch("leavepictureinpicture", { type: "leavepictureinpicture" });
+			}
 			document.pictureInPictureElement = this;
 			this.dispatch("enterpictureinpicture", { type: "enterpictureinpicture" });
 			return Promise.resolve();
@@ -277,7 +284,7 @@ function createWorld(options = {}) {
 		video.isConnected = false;
 		const index = connectedVideos.indexOf(video);
 		if (index >= 0) connectedVideos.splice(index, 1);
-		if (document.pictureInPictureElement === video) {
+		if (document.pictureInPictureElement === video && !options.keepPipOnDetach) {
 			document.pictureInPictureElement = null;
 			video.dispatch("leavepictureinpicture", { type: "leavepictureinpicture" });
 		}
@@ -306,11 +313,14 @@ function createWorld(options = {}) {
 		this.disconnectCalls++;
 	};
 
-	function flushMutations() {
+	function flushMutations(records) {
+		// The default models a mutation batch that inserted a video, matching
+		// the observer's video-added filter; pass other shapes to test it.
+		const batch = records || [{ addedNodes: [{ nodeType: 1, tagName: "VIDEO" }] }];
 		for (const observer of observers) {
 			if (!observer.observed) continue;
 			try {
-				observer.callback([], observer);
+				observer.callback(batch, observer);
 			} catch (error) {
 				errors.push(String((error && error.stack) || error));
 			}
@@ -358,16 +368,22 @@ function createWorld(options = {}) {
 	}
 
 	// --- history ----------------------------------------------------------
+	// Like a browser, same-document history calls report to the Navigation API
+	// no matter which world made them.
+	const navigation = makeListenerRegistry(pushError);
 	const history = {
 		pushState(state, title, url) {
 			calls.pushState++;
 			calls.pushStateArgs.push([state, title, url]);
+			navigation.dispatch("currententrychange", { type: "currententrychange" });
 		},
 		replaceState(state, title, url) {
 			calls.replaceState++;
 			calls.replaceStateArgs.push([state, title, url]);
+			navigation.dispatch("currententrychange", { type: "currententrychange" });
 		},
 	};
+	const nativeHistory = { pushState: history.pushState, replaceState: history.replaceState };
 
 	// --- sandbox / window -------------------------------------------------
 	const sandbox = makeListenerRegistry(pushError);
@@ -396,8 +412,37 @@ function createWorld(options = {}) {
 		debug: (...args) => logs.push("DEBUG " + args.map(String).join(" ")),
 		error: (...args) => errors.push("ERROR " + args.map(String).join(" ")),
 	};
+
+	// --- userscript storage + menu -----------------------------------------
+	const storage = new Map();
+	const gmStore = new Map();
+	let menuSeq = 0;
+	sandbox.localStorage = {
+		getItem: (k) => (storage.has(k) ? storage.get(k) : null),
+		setItem: (k, v) => storage.set(k, String(v)),
+		removeItem: (k) => storage.delete(k),
+	};
+	if (!options.noGM) {
+		sandbox.GM_registerMenuCommand = (label, fn) => {
+			const id = ++menuSeq;
+			calls.menu.push({ id, label, fn });
+			return id;
+		};
+		sandbox.GM_unregisterMenuCommand = (id) => {
+			const index = calls.menu.findIndex((c) => c.id === id);
+			if (index >= 0) calls.menu.splice(index, 1);
+		};
+		sandbox.GM_getValue = (k, d) => (gmStore.has(k) ? gmStore.get(k) : d);
+		sandbox.GM_setValue = (k, v) => gmStore.set(k, v);
+	}
+	if (options.settings) {
+		const raw = JSON.stringify(options.settings);
+		gmStore.set("settings", raw);
+		storage.set("auto-pip-settings", raw);
+	}
 	sandbox.window = sandbox;
 	sandbox.self = sandbox;
+	if (!options.noNavigationApi) sandbox.navigation = navigation;
 
 	// --- initial DOM graph ------------------------------------------------
 	const videos = [];
@@ -467,6 +512,7 @@ function createWorld(options = {}) {
 		navigator,
 		location: sandbox.location,
 		history,
+		nativeHistory,
 		videos,
 		calls,
 		errors,
@@ -483,6 +529,9 @@ function createWorld(options = {}) {
 		flushMutations,
 		listeners,
 		tick,
+		menu: calls.menu,
+		gmStore,
+		localStorageBacking: storage,
 		get querySelectorCalls() {
 			return querySelectorCalls;
 		},

@@ -212,8 +212,11 @@ module.exports = {
 			await world.tick(600);
 			assert.equal(attempts, 2, "the next hidden transition must attempt PiP again");
 			assert.equal(world.document.pictureInPictureElement, video);
-			assert.equal(world.errors.length, 1);
-			assert.match(world.errors[0], /NotAllowedError/);
+			assert.deepEqual(
+				world.errors,
+				[],
+				"a gestureless NotAllowedError is expected on stock Chrome and stays silent"
+			);
 		});
 
 				t.test("W10 media session trigger enters PiP before the page reports hidden", async () => {

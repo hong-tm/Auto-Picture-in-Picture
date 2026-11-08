@@ -52,7 +52,7 @@ module.exports = { register(t) {
 		const previous = w.videos[0];
 		previous.paused = true;
 		const active = w.createVideo({
-			selectors: [".html5-main-video", "ytd-reel-video-renderer[is-active] video"],
+			selectors: [".html5-main-video", "#shorts-player video"],
 			playing: true,
 		});
 		w.attach(active);

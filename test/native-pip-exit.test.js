@@ -33,6 +33,43 @@ module.exports = { register(t) {
 		assert.deepEqual(w.errors, []);
 	});
 
+	t.test("browser-owned PiP the browser leaves open is closed after a grace period", async () => {
+		const w = await ready();
+		for (let cycle = 0; cycle < 3; cycle++) {
+			w.setHidden(true);
+			await action(w)();
+			w.setHidden(false);
+			await w.tick(999);
+			assert.equal(w.calls.exit, cycle, "the browser gets the first chance to close");
+			await w.tick(1);
+			assert.equal(w.calls.exit, cycle + 1);
+			assert.equal(w.document.pictureInPictureElement, null);
+		}
+		assert.deepEqual(w.errors, []);
+	});
+
+	t.test("a spontaneous hidden entry left open on return is closed too", async () => {
+		const w = await ready();
+		w.setHidden(true);
+		w.userEnterPip(w.videos[0]);
+		w.setHidden(false);
+		await w.tick(1000);
+		assert.equal(w.calls.exit, 1);
+		assert.equal(w.document.pictureInPictureElement, null);
+	});
+
+	t.test("hiding again within the grace period keeps browser-owned PiP", async () => {
+		const w = await ready();
+		w.setHidden(true);
+		await action(w)();
+		w.setHidden(false);
+		await w.tick(500);
+		w.setHidden(true);
+		await w.tick(1000);
+		assert.equal(w.calls.exit, 0);
+		assert.equal(w.document.pictureInPictureElement, w.videos[0]);
+	});
+
 	t.test("browser ownership applies before the entry promise settles", async () => {
 		const w = await ready();
 		const video = w.videos[0];
