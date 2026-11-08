@@ -42,11 +42,32 @@
 
 ## Overview
 
-An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode for YouTube and Bilibili videos. This script provides a seamless video-watching experience across multiple browsers, enhancing the native PiP functionality with additional features and broader compatibility.
+An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode for YouTube, YouTube Music, Bilibili and Bilibili Live videos. This script provides a seamless video-watching experience across multiple browsers, enhancing the native PiP functionality with additional features and broader compatibility.
 
 > **Note**: Many browsers now offer native Auto PiP features in beta/experimental mode.
 
 ## Changelog
+
+### v1.6.0
+
+- New userscript menu: a master switch for automatic PiP and a "Close PiP on return" switch. Settings persist through the script manager's storage (`GM_setValue`), or the site's `localStorage` when that is unavailable. With the master switch off, the script also removes its Media Session PiP handler, so the browser's native Auto PiP no longer opens windows through it; the player's own PiP button still works.
+- Cooperation with Chrome's native Auto PiP: a PiP window the script did not request while the page is hidden (native Auto PiP, media controls, or the site's own player) is left to the browser, which closes it when the page returns; the script no longer races it with its own exit. If the browser leaves it open, the script closes it about 1 second after the page returns. A PiP you opened yourself on a visible page still closes on return by default — the new menu switch can turn that off.
+- A gestureless `NotAllowedError` on a hidden page is expected on stock Chrome and is no longer logged as an error; the next hide attempts again. The retry loop that only ran on browsers without `mediaSession` (none shipped today) was removed.
+- New sites: Bilibili live rooms (`live.bilibili.com`, selectors verified on real rooms) and YouTube Music (`music.youtube.com`).
+- The video observer ignores mutations that cannot have added a video, so chat iframes and busy pages no longer trigger discovery scans.
+- YouTube Shorts discovery uses the current `#shorts-player video` selector; the stale `ytd-reel-video-renderer[is-active]` selector (no longer present on the live site) was removed.
+
+### v1.5.4
+
+- After leaving YouTube Shorts for a normal video, auto PiP uses the watch player again. YouTube keeps the paused Shorts video in the page, and the script used to pick it.
+- The script no longer replaces the site's Media Session metadata or clears its play, pause and seek handlers. OS media controls keep the video title, channel and thumbnail.
+- PiP event listeners move to the current video after PiP closes, so a video found while PiP was open cannot block later automatic entries.
+- On Bilibili, the navigation watch uses the Navigation API, so route changes inside the page are seen from the userscript sandbox without patching the page's `history`. Browsers without this API (Firefox before 147, for example) fall back to `popstate` and the DOM observer.
+- A replacement video that starts playing after the script finds it now enters PiP while the page is hidden. The same applies when the page is hidden during buffering.
+- When a site removes the video that is in PiP, PiP moves to the new video. Chromium keeps the removed element as the PiP element without an event, which used to block the new entry.
+- Window focus changes no longer close PiP that you opened yourself on a visible page. Only page visibility now starts or closes automatic PiP.
+- If you close PiP while the page is hidden, it stays closed for later videos until you return to the page.
+- Browsers without the PiP API no longer log errors and retry on every tab switch. The retry budget resets after a failed entry. The script no longer fails when `document.documentElement` does not exist yet at `document-start`.
 
 ### v1.5.3
 
@@ -85,11 +106,11 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 | Feature                | Description                                                         |
 | ---------------------- | ------------------------------------------------------------------- |
 | **Smart Activation**   | Automatically enters PiP mode during active video playback          |
+| **Menu Switches**      | Master switch and close-on-return switch in the userscript menu     |
 | **Tab Management**     | Intelligently handles tab switching with user interaction detection |
 | **Pause Handling**     | Prevents PiP activation during video pauses                         |
-| **Click Optimization** | Enhanced click event handling for better user experience            |
 | **Cross-Browser**      | Consistent experience across Chrome, Edge, and Brave                |
-| **Error Resilience**   | Robust error handling with automatic retry mechanisms               |
+| **Error Resilience**   | Expected rejections are handled quietly; no busy retry loops        |
 
 </details>
 
@@ -99,13 +120,13 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 <summary><b>Native Auto PiP Support Status</b></summary>
 <br>
 
-| Browser | Native Auto PiP | Status        | Available In               |
-| ------- | --------------- | ------------- | -------------------------- |
-| Chrome  | ✅              | Beta          | Chrome 137.0.7151.15+      |
-| Firefox | ✅              | Experimental  | Firefox 130+               |
-| Edge    | ❓              | Beta          | Edge 137+ (Chromium-based) |
-| Brave   | ❓              | Beta          | Brave 1.63+                |
-| Safari  | ❓              | Not Available | -                          |
+| Browser | Native Auto PiP | Status         | Available In                                                |
+| ------- | --------------- | -------------- | ----------------------------------------------------------- |
+| Chrome  | ✅              | Gradual rollout | Chrome 134+ (flag `#auto-picture-in-picture-for-video-playback` forces it on) |
+| Firefox | ✅              | Experimental   | Firefox 130+                                                |
+| Edge    | ❓              | Beta           | Edge 137+ (Chromium-based)                                  |
+| Brave   | ❓              | Beta           | Brave 1.63+                                                 |
+| Safari  | ❓              | Not Available  | -                                                           |
 
 </details>
 
@@ -146,6 +167,8 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 > `#auto-picture-in-picture-on-window-occluded` controls automatic PiP when another window fully covers Chrome. `#browser-initiated-automatic-picture-in-picture` lets Chrome open standard video PiP when a site has no `enterpictureinpicture` handler. These flags are separate. If you enable either native path, test the browser behavior with the userscript disabled first.
 >
 > With all flags left at `Default`, the userscript still keeps its own fallback path. Chrome may require a fresh click for a later direct request, especially for window minimization.
+
+> **Minimize does not trigger?** A minimized window hides the page with no user gesture on it, and a userscript cannot create one, so the script's own request only succeeds within ~5 seconds after your last click. For minimize (and fully covered windows), enable the native path above: the site permission "Automatically enter Picture-in-Picture mode" plus `#auto-picture-in-picture-for-video-playback`. Chrome then calls the media-session action the script registers and opens PiP without a gesture. The native path needs media that is playing and was audible within the last two seconds in the top frame; muted videos and iframe players keep the script's click-based path.
 
 ### Firefox Setup
 
@@ -203,7 +226,7 @@ Required for userscript installation in all browsers
 
 - The script does not control Chrome flags or site permissions.
 - Chrome may allow the first PiP request after a click and reject later direct requests after the transient activation expires.
-- The official Media Session automatic PiP path works only when Chrome decides the page is eligible and provides its PiP request token.
+- The official Media Session automatic PiP path works only when Chrome decides the page is eligible and provides its PiP request token. Eligibility includes media that was audible within the last two seconds and lives in the top frame; muted videos and iframe players rely on the script's gesture-based path.
 - Window minimization and window occlusion are separate browser states. The script can observe page visibility, but a userscript cannot force Chrome to grant automatic PiP authorization for every minimized-window cycle.
 
 ## Technical Implementation

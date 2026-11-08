@@ -19,7 +19,6 @@ module.exports = {
 			const world = await boot();
 
 			world.window.dispatch("pagehide", { persisted: true });
-			assert.equal(world.listeners(world.window, "focus"), 1);
 			assert.equal(world.listeners(world.document, "visibilitychange"), 1);
 
 			world.setHidden(true);
@@ -32,7 +31,6 @@ module.exports = {
 			const world = await boot();
 
 			world.window.dispatch("pagehide", { persisted: false });
-			assert.equal(world.listeners(world.window, "focus"), 0);
 			assert.equal(world.listeners(world.document, "visibilitychange"), 0);
 			assert.equal(world.observers[0].observed, false);
 			assert.equal(world.errors.length, 0, world.errors.join(" | "));

@@ -1,14 +1,20 @@
 // ==UserScript==
 // @name         Auto Picture-in-Picture
 // @namespace    http://tampermonkey.net/
-// @version      1.5.3
+// @version      1.6.0
 // @description  Automatically enables picture-in-picture mode for YouTube and Bilibili with improved Edge and Brave support
 // @author       hong-tm
 // @license      MIT
 // @icon         https://raw.githubusercontent.com/hong-tm/blog-image/main/picture-in-picture.svg
 // @match        https://www.youtube.com/*
+// @match        https://music.youtube.com/*
 // @match        https://www.bilibili.com/*
+// @match        https://live.bilibili.com/*
 // @grant        GM_log
+// @grant        GM_registerMenuCommand
+// @grant        GM_unregisterMenuCommand
+// @grant        GM_getValue
+// @grant        GM_setValue
 // @run-at       document-start
 // @downloadURL https://update.greasyfork.org/scripts/516762/Auto%20Picture-in-Picture.user.js
 // @updateURL https://update.greasyfork.org/scripts/516762/Auto%20Picture-in-Picture.meta.js
@@ -54,6 +60,86 @@
 		}
 	}
 
+	class Settings {
+		static #KEY = "settings";
+		static #STORAGE_KEY = "auto-pip-settings";
+
+		// Read storage on every access: another tab may have changed it.
+		static #load() {
+			const values = { enabled: true, closeOnReturn: true };
+			try {
+				const raw =
+					typeof GM_getValue === "function"
+						? GM_getValue(this.#KEY)
+						: localStorage.getItem(this.#STORAGE_KEY);
+				if (raw) Object.assign(values, JSON.parse(raw));
+			} catch (e) {}
+			return values;
+		}
+
+		static #save(values) {
+			try {
+				const raw = JSON.stringify(values);
+				if (typeof GM_setValue === "function") GM_setValue(this.#KEY, raw);
+				else localStorage.setItem(this.#STORAGE_KEY, raw);
+			} catch (e) {}
+		}
+
+		static get enabled() {
+			return this.#load().enabled;
+		}
+
+		static get closeOnReturn() {
+			return this.#load().closeOnReturn;
+		}
+
+		static toggle(name) {
+			const values = this.#load();
+			values[name] = !values[name];
+			this.#save(values);
+		}
+	}
+
+	class Menu {
+		static #ids = [];
+		static #registeredOnce = false;
+		static #onToggle = null;
+
+		static setup(onToggle = this.#onToggle) {
+			this.#onToggle = onToggle;
+			if (typeof GM_registerMenuCommand !== "function") return;
+			const canUpdate = typeof GM_unregisterMenuCommand === "function";
+			if (this.#registeredOnce && !canUpdate) return;
+			if (canUpdate) {
+				for (const id of this.#ids) {
+					try {
+						GM_unregisterMenuCommand(id);
+					} catch (e) {}
+				}
+			}
+			this.#ids = [
+				GM_registerMenuCommand(
+					`Auto PiP: ${Settings.enabled ? "ON" : "OFF"}`,
+					() => {
+						Settings.toggle("enabled");
+						this.#onToggle?.();
+						this.setup();
+					}
+				),
+				GM_registerMenuCommand(
+					`Close PiP on return: ${
+						Settings.closeOnReturn ? "ON" : "OFF"
+					}`,
+					() => {
+						Settings.toggle("closeOnReturn");
+						this.setup();
+					}
+				),
+			];
+			this.#registeredOnce = true;
+		}
+	}
+
 	class BrowserDetector {
 		static #browserInfo = null;
 
@@ -94,30 +180,31 @@
 	}
 
 	class VideoController {
-		#isTabActive = !document.hidden;
-		#isWindowFocused = true;
-		#isPiPRequested = false;
+		#userDismissed = false;
 		#entryPending = false;
 		#resume = 0;
 		#hiddenTimer = null;
 		#browserPiP = false;
-		#pipAttempts = 0;
 		#lastVideoElement = null;
 		#pipEventVideo = null;
 		#videoObserver = null;
 		#observerActive = false;
 		#videoDiscovery = null;
-		#biliNavWrapped = false;
 		#eventListeners = new Set();
 		#debounceTimers = new Map();
 
-		static MAX_PIP_ATTEMPTS = 3;
-		static PIP_RETRY_DELAY = 500;
 		static VIDEO_SELECTORS = {
 			"youtube.com": [
+				"#movie_player video",
 				".html5-main-video",
 				"video.video-stream",
-				"#movie_player video",
+			],
+			// Key order matters: "live.bilibili.com" must be checked before
+			// "bilibili.com", which hostname.includes() would also match.
+			"live.bilibili.com": [
+				"#live-player video",
+				".live-player-ctnr video",
+				"video",
 			],
 			"bilibili.com": [
 				".bilibili-player-video video",
@@ -150,17 +237,34 @@
 			const rescan = this.#debounce(() => {
 				if (!this.#lastVideoElement?.isConnected) {
 					this.getVideoElement().then((video) => {
-						if (video && !this.#isTabActive && this.isVideoPlaying(video)) {
+						if (video && document.hidden && this.isVideoPlaying(video)) {
 							this.enablePiP(true);
 						}
 					});
 				}
 			}, 200);
-			this.#videoObserver = new MutationObserver(() => {
-				if (!this.#lastVideoElement?.isConnected) rescan();
+			this.#videoObserver = new MutationObserver((mutations) => {
+				if (this.#lastVideoElement?.isConnected) return;
+				// While hunting for a first video, ignore mutations that cannot
+				// have added one; busy pages and chat iframes mutate constantly.
+				// Once a locked video was lost, any change is a reason to look.
+				if (
+					this.#lastVideoElement ||
+					mutations.some((m) =>
+						[...m.addedNodes].some(
+							(n) =>
+								n.nodeType === 1 &&
+								(n.tagName === "VIDEO" ||
+									!!n.querySelector?.("video"))
+						)
+					)
+				) {
+					rescan();
+				}
 			});
 
-			this.#videoObserver.observe(document.documentElement, {
+			// `document` exists at document-start; documentElement may not yet.
+			this.#videoObserver.observe(document, {
 				childList: true,
 				subtree: true,
 			});
@@ -170,7 +274,7 @@
 		#setVideoObserverActive(active) {
 			if (active) {
 				if (!this.#observerActive && this.#videoObserver) {
-					this.#videoObserver.observe(document.documentElement, {
+					this.#videoObserver.observe(document, {
 						childList: true,
 						subtree: true,
 					});
@@ -183,7 +287,7 @@
 		}
 
 		#syncPipListeners() {
-			if (document.pictureInPictureElement || this.#pipEventVideo === this.#lastVideoElement) return;
+			if (document.pictureInPictureElement?.isConnected || this.#pipEventVideo === this.#lastVideoElement) return;
 
 			if (this.#pipEventVideo) {
 				this.#pipEventVideo.removeEventListener(
@@ -194,6 +298,7 @@
 					"leavepictureinpicture",
 					this.#onLeavePiP
 				);
+				this.#pipEventVideo.removeEventListener("playing", this.#onVideoPlaying);
 			}
 
 			if (this.#lastVideoElement?.isConnected) {
@@ -205,6 +310,7 @@
 					"leavepictureinpicture",
 					this.#onLeavePiP
 				);
+				this.#lastVideoElement.addEventListener("playing", this.#onVideoPlaying);
 				this.#pipEventVideo = this.#lastVideoElement;
 			} else {
 				this.#pipEventVideo = null;
@@ -212,26 +318,12 @@
 		}
 
 		#installBilibiliNavigationWatch(addListener) {
-			if (this.#biliNavWrapped) return;
-			this.#biliNavWrapped = true;
-
-			const originalPushState = history.pushState;
-			const originalReplaceState = history.replaceState;
-			const controller = this;
-
-			history.pushState = function (...args) {
-				const result = originalPushState.apply(this, args);
-				controller.#scheduleBiliRescan();
-				return result;
-			};
-
-			history.replaceState = function (...args) {
-				const result = originalReplaceState.apply(this, args);
-				controller.#scheduleBiliRescan();
-				return result;
-			};
-
-			addListener(window, "popstate", () => this.#scheduleBiliRescan());
+			// The router runs in the page's main world. Navigation API events reach
+			// every world, and patching page history breaks routing on Firefox, where
+			// the page may not call a sandbox function.
+			const rescan = () => this.#scheduleBiliRescan();
+			if (window.navigation) addListener(window.navigation, "currententrychange", rescan);
+			addListener(window, "popstate", rescan);
 		}
 
 		#scheduleBiliRescan() {
@@ -244,7 +336,7 @@
 
 			this.#lastVideoElement = null;
 			const video = await this.getVideoElement();
-			if (video && !this.#isTabActive && this.isVideoPlaying(video)) {
+			if (video && document.hidden && this.isVideoPlaying(video)) {
 				this.enablePiP(true);
 			}
 		}
@@ -277,7 +369,9 @@
 			}
 
 			let video = null;
-			const selectors = this.#shorts() ? ["ytd-reel-video-renderer[is-active] video", "#shorts-player video"] : VideoController.VIDEO_SELECTORS[domain];
+			const selectors = this.#shorts()
+				? ["#shorts-player video"]
+				: VideoController.VIDEO_SELECTORS[domain];
 			for (const selector of selectors) {
 				video = document.querySelector(selector);
 				if (video) {
@@ -323,27 +417,9 @@
 
 		async requestPictureInPicture(video) {
 			if (!video) return false;
+			if (!document.pictureInPictureEnabled && !video.webkitSetPresentationMode) return false;
 
 			try {
-				// Setup media session for automatic PiP
-				if ("mediaSession" in navigator) {
-					try {
-						// Set media session metadata for better system integration
-						navigator.mediaSession.metadata = new MediaMetadata({
-							title: document.title,
-							artwork: [
-								{
-									src: document.querySelector('link[rel="icon"]')?.href || "",
-									sizes: "96x96",
-									type: "image/png",
-								},
-							],
-						});
-					} catch (e) {
-						Logger.log("Some media session features not supported");
-					}
-				}
-
 				// Handle browser-specific cases
 				if (BrowserDetector.isBrave || BrowserDetector.isEdge) {
 					video.focus();
@@ -358,44 +434,34 @@
 					try {
 						await video.requestPictureInPicture();
 						Logger.log("PiP activated successfully!");
-						this.#pipAttempts = 0;
 						return true;
 					} catch (e) {
-						// A media-session handler does not mean PiP opened.
-						if ("mediaSession" in navigator) {
-							Logger.error("PiP request rejected:", e.name, e.message);
-							return false;
-						}
-						throw e;
+						// A hidden page without a fresh user gesture gets
+						// NotAllowedError here; Chrome's native auto PiP path
+						// covers that case. Retrying cannot create a gesture.
+						Logger.log("PiP request rejected:", e.name);
+						return false;
 					}
 				} else if (video.webkitSetPresentationMode) {
 					await video.webkitSetPresentationMode("picture-in-picture");
 					Logger.log("Safari PiP activated successfully!");
-					this.#pipAttempts = 0;
 					return true;
 				}
 				throw new Error("PiP not supported");
 			} catch (error) {
 				Logger.error("PiP request failed:", error.message);
-				this.#pipAttempts++;
-
-				if (this.#pipAttempts < VideoController.MAX_PIP_ATTEMPTS) {
-					Logger.log(`Retrying PiP (attempt ${this.#pipAttempts})...`);
-					await new Promise((resolve) =>
-						setTimeout(
-							resolve,
-							VideoController.PIP_RETRY_DELAY * Math.pow(1.5, this.#pipAttempts)
-						)
-					);
-					return this.requestPictureInPicture(video);
-				}
-				Logger.error("Max PiP attempts reached");
 				return false;
 			}
 		}
 
 		async enablePiP(forceEnable = false, browserAction = false) {
-			if (this.#entryPending || document.pictureInPictureElement || this.#isPiPRequested) return;
+			// Chromium keeps a removed video as pictureInPictureElement with no leave
+			// event, so only a connected element means PiP is really showing the page.
+			if (this.#entryPending || document.pictureInPictureElement?.isConnected) return;
+			if (this.#userDismissed && !browserAction) return;
+			// The master switch stops automatic entries. Media-control actions
+			// are user initiated and stay allowed.
+			if (!Settings.enabled && !browserAction) return;
 			this.#entryPending = true;
 			this.#browserPiP = browserAction;
 			const id = this.#resume;
@@ -405,13 +471,7 @@
 				if ((!browserAction && !document.hidden) || !video ||
 					(!forceEnable && !this.isVideoPlaying(video))) return;
 				const success = await this.requestPictureInPicture(video);
-				if (success) {
-					if (!document.hidden && id !== this.#resume) {
-						await this.disablePiP();
-						return;
-					}
-					this.#isPiPRequested = !!document.pictureInPictureElement;
-				}
+				if (success && !document.hidden && id !== this.#resume) this.disablePiP();
 			} catch (error) {
 				Logger.error("Enable PiP error:", error);
 			} finally {
@@ -421,13 +481,22 @@
 		}
 
 		async disablePiP() {
-			// Browser-triggered auto PiP closes through the browser's return path.
-			if (document.pictureInPictureElement && !this.#browserPiP) {
+			// With "Close PiP on return" off, closure stays with the user.
+			if (!Settings.closeOnReturn || !document.pictureInPictureElement) return;
+			if (this.#browserPiP) {
+				// The browser normally closes its own auto PiP on return, and a
+				// competing exit can hang it. Close only what it leaves open.
+				const id = this.#resume;
+				await new Promise((resolve) => setTimeout(resolve, 1000));
+				// The browser closing it resets #browserPiP, so a PiP opened later
+				// on the visible page is not closed here.
+				if (document.hidden || id !== this.#resume || !this.#browserPiP ||
+					!Settings.closeOnReturn) return;
+			}
+			if (document.pictureInPictureElement) {
 				try {
 					await document.exitPictureInPicture();
 					Logger.log("PiP mode exited");
-					this.#isPiPRequested = false;
-					this.#pipAttempts = 0;
 				} catch (error) {
 					Logger.error("Exit PiP error:", error);
 				}
@@ -435,73 +504,64 @@
 		}
 
 		#onEnterPiP = () => {
-			this.#isPiPRequested = true;
-			this.#pipAttempts = 0;
+			// An enter while hidden with no script request in flight is the
+			// browser or the site opening PiP itself (native auto PiP). The
+			// browser closes that window on return, so do not race it.
+			if (!this.#entryPending && document.hidden) this.#browserPiP = true;
 			Logger.log("Entered PiP mode");
 		};
 
 		#onLeavePiP = () => {
-			this.#isPiPRequested = false;
 			this.#browserPiP = false;
-			this.#pipAttempts = 0;
+			// A connected video leaving PiP on a hidden page means the user closed it.
+			// The site removing the video does not count.
+			this.#userDismissed = document.hidden && !!this.#pipEventVideo?.isConnected;
+			this.#syncPipListeners();
 			this.#setVideoObserverActive(true);
 			Logger.log("Left PiP mode");
 		};
 
-		#computeActive() {
-			return !document.hidden && this.#isWindowFocused;
-		}
+		// A video found while still loading or stalled has no other trigger later.
+		#onVideoPlaying = () => {
+			if (document.hidden) this.enablePiP(true);
+		};
 
-		#applyActiveState = (event) => {
-			const wasActive = this.#isTabActive;
-			this.#isTabActive = this.#computeActive();
+		#onVisibilityChange = () => {
 			clearTimeout(this.#hiddenTimer);
 			this.#hiddenTimer = null;
 			if (!this.#lastVideoElement?.isConnected) this.#setVideoObserverActive(true);
-			if (!document.hidden && (this.#isTabActive || event?.type === "visibilitychange")) {
+			if (!document.hidden) {
 				this.#resume++;
+				this.#userDismissed = false;
+				// Another tab may have flipped the master switch. Native auto PiP
+				// can fire before visibilitychange, so refresh on return.
+				this.setupMediaSession();
 				this.disablePiP();
-			} else if (wasActive && navigator.userActivation?.isActive) {
+			} else if (navigator.userActivation?.isActive) {
 				this.enablePiP();
 			} else {
 				this.#hiddenTimer = setTimeout(() => {
 					this.#hiddenTimer = null;
-					if (!this.#isTabActive) this.enablePiP();
+					this.enablePiP();
 				}, BrowserDetector.isChromiumBased ? 300 : 100);
 			}
-		};
-
-		#onWindowBlur = () => {
-			this.#isWindowFocused = false;
-			this.#applyActiveState();
-		};
-
-		#onWindowFocus = () => {
-			this.#isWindowFocused = true;
-			this.#applyActiveState();
 		};
 
 		setupMediaSession() {
 			if ("mediaSession" in navigator) {
 				try {
+					// Native auto PiP fires this action too, so the master switch
+					// off removes it and leaves PiP to the browser and the player.
 					navigator.mediaSession.setActionHandler(
 						"enterpictureinpicture",
-						async () => {
-							Logger.log("Media session enterpictureinpicture action");
-							await this.enablePiP(true, true);
-						}
+						Settings.enabled
+							? async () => {
+								Logger.log("Media session enterpictureinpicture action");
+								await this.enablePiP(true, true);
+							}
+							: null
 					);
 					Logger.log("Media session enterpictureinpicture handler registered");
-
-					["play", "pause", "seekbackward", "seekforward"].forEach((action) => {
-						try {
-							navigator.mediaSession.setActionHandler(action, null);
-						} catch (e) {
-							Logger.log(`${action} handler not supported`);
-						}
-					});
-
-					Logger.log("Media session handlers set up");
 				} catch (error) {
 					Logger.log("Some media session features not supported");
 				}
@@ -519,9 +579,7 @@
 				this.#eventListeners.add({ target, event, handler });
 			};
 
-			addListener(document, "visibilitychange", this.#applyActiveState);
-			addListener(window, "blur", this.#onWindowBlur);
-			addListener(window, "focus", this.#onWindowFocus);
+			addListener(document, "visibilitychange", this.#onVisibilityChange);
 
 			if (window.location.hostname.includes("bilibili.com")) {
 				this.#installBilibiliNavigationWatch(addListener);
@@ -530,7 +588,9 @@
 					window,
 					"yt-navigate-finish",
 					this.#debounce(async () => {
-						if (!this.#isTabActive) {
+						// YouTube keeps the Shorts player connected after leaving Shorts.
+						this.#lastVideoElement = null;
+						if (document.hidden) {
 							this.#setVideoObserverActive(true);
 							const video = await this.getVideoElement();
 							if (video && this.isVideoPlaying(video)) {
@@ -559,6 +619,7 @@
 					"leavepictureinpicture",
 					this.#onLeavePiP
 				);
+				this.#pipEventVideo.removeEventListener("playing", this.#onVideoPlaying);
 				this.#pipEventVideo = null;
 			}
 
@@ -576,11 +637,11 @@
 			Logger.log("Initializing PiP controller...");
 			this.#addEventListeners();
 			this.setupMediaSession();
+			Menu.setup(() => this.setupMediaSession());
 
 			// Force immediate visibility check and PiP attempt
 			setTimeout(() => {
-				this.#isTabActive = this.#computeActive();
-				if (!this.#isTabActive) {
+				if (document.hidden) {
 					this.getVideoElement().then((video) => {
 						if (video && this.isVideoPlaying(video)) {
 							this.enablePiP(true);

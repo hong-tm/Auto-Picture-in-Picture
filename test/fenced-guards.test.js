@@ -13,7 +13,7 @@ const path = require("node:path");
 const PIP_SOURCE = fs.readFileSync(path.join(__dirname, "..", "pip.js"), "utf8");
 const PIP_LINES = PIP_SOURCE.split("\n");
 
-const VERSION_LINE = /^\s*\/\/\s*@version\s+1\.(4|5)(\.\d+)?\s*$/;
+const VERSION_LINE = /^\s*\/\/\s*@version\s+1\.(4|5|6)(\.\d+)?\s*$/;
 
 const HEADER = [
 	"// ==UserScript==",
@@ -25,8 +25,14 @@ const HEADER = [
 	"// @license      MIT",
 	"// @icon         https://raw.githubusercontent.com/hong-tm/blog-image/main/picture-in-picture.svg",
 	"// @match        https://www.youtube.com/*",
+	"// @match        https://music.youtube.com/*",
 	"// @match        https://www.bilibili.com/*",
+	"// @match        https://live.bilibili.com/*",
 	"// @grant        GM_log",
+	"// @grant        GM_registerMenuCommand",
+	"// @grant        GM_unregisterMenuCommand",
+	"// @grant        GM_getValue",
+	"// @grant        GM_setValue",
 	"// @run-at       document-start",
 	"// @downloadURL https://update.greasyfork.org/scripts/516762/Auto%20Picture-in-Picture.user.js",
 	"// @updateURL https://update.greasyfork.org/scripts/516762/Auto%20Picture-in-Picture.meta.js",
@@ -66,9 +72,9 @@ const PAGEHIDE_LISTENER = [
 
 module.exports = {
 	register(t) {
-		t.test("header lines 1-15 are intact (only @version may change)", () => {
-			assert.ok(PIP_LINES.length >= 15, "pip.js must have at least 15 lines");
-			for (let i = 0; i < 15; i++) {
+		t.test("header lines are intact (only @version may change)", () => {
+			assert.ok(PIP_LINES.length >= HEADER.length, "pip.js must cover the header");
+			for (let i = 0; i < HEADER.length; i++) {
 				if (i === 3) {
 					assert.match(PIP_LINES[i], VERSION_LINE, "@version must be 1.4.x or 1.5.x");
 				} else {
