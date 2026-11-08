@@ -61,26 +61,25 @@
 	}
 
 	class Settings {
-		static #values = null;
 		static #KEY = "settings";
 		static #STORAGE_KEY = "auto-pip-settings";
 
+		// Read storage on every access: another tab may have changed it.
 		static #load() {
-			if (this.#values) return this.#values;
-			this.#values = { enabled: true, closeOnReturn: true };
+			const values = { enabled: true, closeOnReturn: true };
 			try {
 				const raw =
 					typeof GM_getValue === "function"
 						? GM_getValue(this.#KEY)
 						: localStorage.getItem(this.#STORAGE_KEY);
-				if (raw) Object.assign(this.#values, JSON.parse(raw));
+				if (raw) Object.assign(values, JSON.parse(raw));
 			} catch (e) {}
-			return this.#values;
+			return values;
 		}
 
-		static #save() {
+		static #save(values) {
 			try {
-				const raw = JSON.stringify(this.#values);
+				const raw = JSON.stringify(values);
 				if (typeof GM_setValue === "function") GM_setValue(this.#KEY, raw);
 				else localStorage.setItem(this.#STORAGE_KEY, raw);
 			} catch (e) {}
@@ -97,7 +96,7 @@
 		static toggle(name) {
 			const values = this.#load();
 			values[name] = !values[name];
-			this.#save();
+			this.#save(values);
 		}
 	}
 
