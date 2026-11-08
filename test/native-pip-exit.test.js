@@ -58,6 +58,19 @@ module.exports = { register(t) {
 		assert.equal(w.document.pictureInPictureElement, null);
 	});
 
+	t.test("a PiP opened after the browser closed its own is not closed by the grace timer", async () => {
+		const w = await ready();
+		w.setHidden(true);
+		await action(w)();
+		w.setHidden(false);
+		await w.tick(200);
+		w.userLeavePip();
+		w.userEnterPip(w.videos[0]);
+		await w.tick(1000);
+		assert.equal(w.calls.exit, 0);
+		assert.equal(w.document.pictureInPictureElement, w.videos[0]);
+	});
+
 	t.test("hiding again within the grace period keeps browser-owned PiP", async () => {
 		const w = await ready();
 		w.setHidden(true);

@@ -1,7 +1,8 @@
 "use strict";
 
 // v1.6.0 GM menu + persisted settings. The master switch stops automatic
-// entries (media-control actions stay user-initiated); "Close PiP on return"
+// entries, including native auto PiP through the Media Session action, which
+// is unregistered while off; "Close PiP on return"
 // decides whether a script-owned PiP window is closed when the page becomes
 // visible again.
 
@@ -45,16 +46,26 @@ module.exports = { register(t) {
 		assert.equal(w.calls.exit, 0);
 	});
 
-	t.test("a media action still enters PiP with the master toggle off", async () => {
+	t.test("the master toggle unregisters the media action and restores it", async () => {
 		const w = await ready();
+		const last = () => w.calls.setActionHandler
+			.filter((c) => c.action === "enterpictureinpicture")
+			.pop().handler;
 		command(w, "Auto PiP").fn();
-		const action = w.calls.setActionHandler
-			.find((c) => c.action === "enterpictureinpicture")
-			.handler;
-		await action();
+		assert.equal(last(), null, "native auto PiP must not reach the script while off");
+		command(w, "Auto PiP").fn();
+		await last()();
 		assert.equal(w.document.pictureInPictureElement, w.videos[0]);
 		w.userLeavePip();
 		assert.equal(w.document.pictureInPictureElement, null);
+	});
+
+	t.test("starting with the master switch off registers no media action", async () => {
+		const w = await ready({ settings: { enabled: false } });
+		assert.deepEqual(
+			w.calls.setActionHandler.map((c) => [c.action, c.handler]),
+			[["enterpictureinpicture", null]]
+		);
 	});
 
 	t.test("the close-on-return toggle off keeps script PiP open on return", async () => {

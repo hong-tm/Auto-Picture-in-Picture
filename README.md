@@ -50,7 +50,7 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 
 ### v1.6.0
 
-- New userscript menu: a master switch for automatic PiP and a "Close PiP on return" switch. Settings persist through the script manager's storage (`GM_setValue`), or the site's `localStorage` when that is unavailable. Media-control actions stay available with the master switch off.
+- New userscript menu: a master switch for automatic PiP and a "Close PiP on return" switch. Settings persist through the script manager's storage (`GM_setValue`), or the site's `localStorage` when that is unavailable. With the master switch off, the script also removes its Media Session PiP handler, so the browser's native Auto PiP no longer opens windows through it; the player's own PiP button still works.
 - Cooperation with Chrome's native Auto PiP: a PiP window the script did not request while the page is hidden (native Auto PiP, media controls, or the site's own player) is left to the browser, which closes it when the page returns; the script no longer races it with its own exit. If the browser leaves it open, the script closes it about 1 second after the page returns. A PiP you opened yourself on a visible page still closes on return by default — the new menu switch can turn that off.
 - A gestureless `NotAllowedError` on a hidden page is expected on stock Chrome and is no longer logged as an error; the next hide attempts again. The retry loop that only ran on browsers without `mediaSession` (none shipped today) was removed.
 - New sites: Bilibili live rooms (`live.bilibili.com`, selectors verified on real rooms) and YouTube Music (`music.youtube.com`).

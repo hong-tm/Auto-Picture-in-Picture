@@ -104,8 +104,10 @@
 	class Menu {
 		static #ids = [];
 		static #registeredOnce = false;
+		static #onToggle = null;
 
-		static setup() {
+		static setup(onToggle = this.#onToggle) {
+			this.#onToggle = onToggle;
 			if (typeof GM_registerMenuCommand !== "function") return;
 			const canUpdate = typeof GM_unregisterMenuCommand === "function";
 			if (this.#registeredOnce && !canUpdate) return;
@@ -121,6 +123,7 @@
 					`Auto PiP: ${Settings.enabled ? "ON" : "OFF"}`,
 					() => {
 						Settings.toggle("enabled");
+						this.#onToggle?.();
 						this.setup();
 					}
 				),
@@ -486,7 +489,10 @@
 				// competing exit can hang it. Close only what it leaves open.
 				const id = this.#resume;
 				await new Promise((resolve) => setTimeout(resolve, 1000));
-				if (document.hidden || id !== this.#resume) return;
+				// The browser closing it resets #browserPiP, so a PiP opened later
+				// on the visible page is not closed here.
+				if (document.hidden || id !== this.#resume || !this.#browserPiP ||
+					!Settings.closeOnReturn) return;
 			}
 			if (document.pictureInPictureElement) {
 				try {
@@ -542,12 +548,16 @@
 		setupMediaSession() {
 			if ("mediaSession" in navigator) {
 				try {
+					// Native auto PiP fires this action too, so the master switch
+					// off removes it and leaves PiP to the browser and the player.
 					navigator.mediaSession.setActionHandler(
 						"enterpictureinpicture",
-						async () => {
-							Logger.log("Media session enterpictureinpicture action");
-							await this.enablePiP(true, true);
-						}
+						Settings.enabled
+							? async () => {
+								Logger.log("Media session enterpictureinpicture action");
+								await this.enablePiP(true, true);
+							}
+							: null
 					);
 					Logger.log("Media session enterpictureinpicture handler registered");
 				} catch (error) {
@@ -625,7 +635,7 @@
 			Logger.log("Initializing PiP controller...");
 			this.#addEventListeners();
 			this.setupMediaSession();
-			Menu.setup();
+			Menu.setup(() => this.setupMediaSession());
 
 			// Force immediate visibility check and PiP attempt
 			setTimeout(() => {
