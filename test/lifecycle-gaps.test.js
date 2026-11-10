@@ -199,6 +199,25 @@ module.exports = { register(t) {
 		assert.equal(w.document.pictureInPictureElement, null);
 	});
 
+	t.test("a video replaced while hidden without a navigation event is picked up", async () => {
+		const w = await ready({
+			host: "bilibili.com",
+			videos: [{ selectors: ["video"], playing: true }],
+			keepPipOnDetach: true,
+		});
+		const old = w.videos[0];
+		w.setHidden(true);
+		await w.tick(600);
+		assert.equal(w.document.pictureInPictureElement, old);
+		const next = w.createVideo({ selectors: ["video"], playing: true });
+		w.detach(old);
+		w.attach(next);
+		w.flushMutations();
+		await w.tick(600);
+		assert.equal(w.document.pictureInPictureElement, next);
+		assert.equal(w.listeners(old, "leavepictureinpicture"), 0);
+	});
+
 	t.test("script survives document-start without documentElement", () => {
 		const source = fs.readFileSync(path.join(__dirname, "..", "pip.js"), "utf8");
 		const sandbox = {

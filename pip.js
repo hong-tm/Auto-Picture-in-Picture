@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Auto Picture-in-Picture
 // @namespace    http://tampermonkey.net/
-// @version      1.6.0
+// @version      1.6.1
 // @description  Automatically enables picture-in-picture mode for YouTube and Bilibili with improved Edge and Brave support
 // @author       hong-tm
 // @license      MIT
@@ -104,12 +104,30 @@
 		static #ids = [];
 		static #registeredOnce = false;
 		static #onToggle = null;
+		static #state = "";
+
+		// A frame inside a page this script already runs in (YouTube live
+		// chat) would list every command twice. An embedded player on another
+		// site has a cross-origin top, which throws here, and keeps its menu.
+		static #inMatchedPage() {
+			try {
+				return window.top !== window.self && !!window.top.location.hostname;
+			} catch (e) {
+				return false;
+			}
+		}
 
 		static setup(onToggle = this.#onToggle) {
 			this.#onToggle = onToggle;
 			if (typeof GM_registerMenuCommand !== "function") return;
+			if (this.#inMatchedPage()) return;
 			const canUpdate = typeof GM_unregisterMenuCommand === "function";
 			if (this.#registeredOnce && !canUpdate) return;
+			// Called again on every return to the page: another tab may have
+			// toggled a setting. Re-register only when a label would change.
+			const state = `${Settings.enabled}|${Settings.closeOnReturn}`;
+			if (this.#registeredOnce && state === this.#state) return;
+			this.#state = state;
 			if (canUpdate) {
 				for (const id of this.#ids) {
 					try {
@@ -182,6 +200,7 @@
 	class VideoController {
 		#userDismissed = false;
 		#entryPending = false;
+		#browserQueued = false;
 		#resume = 0;
 		#hiddenTimer = null;
 		#browserPiP = false;
@@ -457,7 +476,13 @@
 		async enablePiP(forceEnable = false, browserAction = false) {
 			// Chromium keeps a removed video as pictureInPictureElement with no leave
 			// event, so only a connected element means PiP is really showing the page.
-			if (this.#entryPending || document.pictureInPictureElement?.isConnected) return;
+			if (document.pictureInPictureElement?.isConnected) return;
+			if (this.#entryPending) {
+				// A browser action is the one request that needs no gesture. Do
+				// not lose it behind a script request that is about to be rejected.
+				if (browserAction) this.#browserQueued = true;
+				return;
+			}
 			if (this.#userDismissed && !browserAction) return;
 			// The master switch stops automatic entries. Media-control actions
 			// are user initiated and stay allowed.
@@ -477,6 +502,10 @@
 			} finally {
 				this.#entryPending = false;
 				if (!document.pictureInPictureElement) this.#browserPiP = false;
+			}
+			if (this.#browserQueued) {
+				this.#browserQueued = false;
+				if (!browserAction && document.hidden) await this.enablePiP(true, true);
 			}
 		}
 
@@ -529,13 +558,17 @@
 		#onVisibilityChange = () => {
 			clearTimeout(this.#hiddenTimer);
 			this.#hiddenTimer = null;
-			if (!this.#lastVideoElement?.isConnected) this.#setVideoObserverActive(true);
+			// While hidden nothing else notices the site replacing the video
+			// without a navigation event, so watch for the whole hidden period.
+			// The callback returns at once while the locked video is connected.
+			this.#setVideoObserverActive(document.hidden || !this.#lastVideoElement?.isConnected);
 			if (!document.hidden) {
 				this.#resume++;
 				this.#userDismissed = false;
 				// Another tab may have flipped the master switch. Native auto PiP
 				// can fire before visibilitychange, so refresh on return.
 				this.setupMediaSession();
+				Menu.setup();
 				this.disablePiP();
 			} else if (navigator.userActivation?.isActive) {
 				this.enablePiP();
@@ -555,8 +588,16 @@
 					navigator.mediaSession.setActionHandler(
 						"enterpictureinpicture",
 						Settings.enabled
-							? async () => {
+							? async (details) => {
 								Logger.log("Media session enterpictureinpicture action");
+								// Another tab may have turned the switch off since this
+								// handler was registered. Only an explicit click on the
+								// browser's PiP button still passes.
+								if (!Settings.enabled &&
+									details?.enterPictureInPictureReason !== "useraction") {
+									this.setupMediaSession();
+									return;
+								}
 								await this.enablePiP(true, true);
 							}
 							: null

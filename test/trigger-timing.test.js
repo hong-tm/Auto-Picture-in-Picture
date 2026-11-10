@@ -74,4 +74,44 @@ module.exports = { register(t) {
 		await w.tick(450);
 		assert.equal(w.calls.rPiP[w.videos[0]] || 0, 0);
 	});
+	t.test("a browser action behind a rejected script request is not lost", async () => {
+		const w = await ready();
+		const video = w.videos[0];
+		const original = video.requestPictureInPicture;
+		let reject;
+		video.requestPictureInPicture = () => new Promise((_, no) => {
+			reject = () => no(Object.assign(new Error("gesture"), {name: "NotAllowedError"}));
+		});
+		w.setHidden(true);
+		await w.tick(600);
+		assert.equal(typeof reject, "function", "precondition: script request in flight");
+		video.requestPictureInPicture = original;
+		const native = action(w)({enterPictureInPictureReason: "contentoccluded"});
+		reject();
+		await native;
+		await w.tick(0);
+		assert.equal(w.document.pictureInPictureElement, video);
+		// Browser-owned: the browser closes it on return, the script does not race.
+		w.setHidden(false);
+		await w.tick(0);
+		assert.equal(w.calls.exit, 0);
+		assert.equal(w.errors.length, 0);
+	});
+	t.test("a queued browser action is dropped once the page is visible again", async () => {
+		const w = await ready();
+		const video = w.videos[0];
+		const original = video.requestPictureInPicture;
+		let reject;
+		video.requestPictureInPicture = () => new Promise((_, no) => {
+			reject = () => no(Object.assign(new Error("gesture"), {name: "NotAllowedError"}));
+		});
+		w.setHidden(true);
+		await w.tick(600);
+		video.requestPictureInPicture = original;
+		action(w)({enterPictureInPictureReason: "contentoccluded"});
+		w.setHidden(false);
+		reject();
+		await w.tick(50);
+		assert.equal(w.document.pictureInPictureElement, null);
+	});
 } };

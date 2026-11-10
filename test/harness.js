@@ -442,6 +442,8 @@ function createWorld(options = {}) {
 	}
 	sandbox.window = sandbox;
 	sandbox.self = sandbox;
+	// options.subframe models a same-origin frame inside a matched page.
+	sandbox.top = options.subframe ? { location: { hostname: host } } : sandbox;
 	if (!options.noNavigationApi) sandbox.navigation = navigation;
 
 	// --- initial DOM graph ------------------------------------------------

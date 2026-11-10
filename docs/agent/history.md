@@ -10,6 +10,7 @@
 - v1.5.3（PR #8）：浏览器所有 PiP 返回时交给浏览器关，不竞争退出；按请求来源区分，不猜浏览器版本。
 - v1.5.4 + 7-bugfix 链（工作区迭代，用户真机验证）：隐藏页换元素/缓冲后重进、断连视频不阻塞、Firefox Xray 风险消除（Navigation API）、可见页手动 PiP 焦点恢复不关、隐藏页手动关闭后不再弹、无 PiP API 浏览器静默、document-start 容错。
 - v1.6.0（PR #10，2026-11-09 合入 main）：GM 菜单双开关 + 原生 Auto PiP 配合（自发隐藏期进入判浏览器所有 + 1 秒浏览器优先关闭）+ 新站点（live.bilibili.com、music.youtube.com）+ observer 过滤 + 清理死重试/死选择器。同 PR 内三个跟进修复：总开关注销 Media Session action、Settings 每次访问重读、返回页刷新 handler。
+- v1.6.1（council 审查轮，分支 `fix/v1.6.1-council`）：浏览器动作不再被在途脚本请求吞掉（`#browserQueued`）；别的标签页关总开关后旧 handler 不再触发原生 PiP；同源子框架不重复注册菜单、返回时刷新标签；隐藏期持续监听 video 替换。README 最小化说明改为两条可持续路径（遮挡 flag / 关闭「返回时关闭」）。
 
 ## 真机验证记录
 

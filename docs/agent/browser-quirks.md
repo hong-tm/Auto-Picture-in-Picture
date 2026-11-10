@@ -7,7 +7,7 @@ Chrome / Edge / Brave（Chromium 系）为主力；Firefox 130+ 实验性（READ
 ## 差异（坑源）
 
 - **Chromium**：移除正在 PiP 的 video 后 `pictureInPictureElement` 仍指向脱离 DOM 的元素且**不发 leave 事件** → 判「PiP 开着」必须加 `isConnected`。
-- **Chrome 134+ 原生 Auto PiP**（逐步推送，flag `#auto-picture-in-picture-for-video-playback` 可立即启用）：调页面注册的 `enterpictureinpicture` action，handler 内 `requestPictureInPicture` 免手势，返回页面浏览器自动关窗。资格 = 顶层框架 + 最近 2 秒可听 + 播放中 + 音频焦点 + handler 已注册 + MEI/站点权限。静音视频与 iframe 内媒体不走原生路径。相关 flags：`#browser-initiated-automatic-picture-in-picture`（无 handler 时浏览器直接开窗）、`#auto-picture-in-picture-on-window-occluded`（遮挡）；`#media-session-enter-picture-in-picture` 已转正默认。
+- **Chrome 134+ 原生 Auto PiP**（逐步推送，flag `#auto-picture-in-picture-for-video-playback` 可立即启用）：调页面注册的 `enterpictureinpicture` action，handler 内 `requestPictureInPicture` 免手势，返回页面浏览器自动关窗。资格 = 顶层框架 + 最近 2 秒可听 + 播放中 + 音频焦点 + handler 已注册 + MEI/站点权限。静音视频与 iframe 内媒体不走原生路径。官方文档写明的触发只有切标签页；最小化/整窗遮挡要 `#auto-picture-in-picture-on-window-occluded`（实验，默认关，Windows/macOS/ChromeOS）。action handler 收到 `details.enterPictureInPictureReason`：`useraction`（浏览器 UI 按钮）/ `contentoccluded`（切页或最小化）/ `other`，旧版本可能没有该字段。页面注册了 handler 时 `#browser-initiated-automatic-picture-in-picture` 不起作用（handler 优先）。相关 flags：`#browser-initiated-automatic-picture-in-picture`（无 handler 时浏览器直接开窗）、`#auto-picture-in-picture-on-window-occluded`（遮挡）；`#media-session-enter-picture-in-picture` 已转正默认。
 - **`HTMLVideoElement.autoPictureInPicture`** 已于 2022 年从 Chromium 删除，不可用。
 - **Firefox**：Xray 隔离（见 code-map SPA 导航行）；PiP 130+ 实验性。
 - **Safari**：`webkitSetPresentationMode` 回退。
@@ -16,4 +16,6 @@ Chrome / Edge / Brave（Chromium 系）为主力；Firefox 130+ 实验性（READ
 
 - `navigator.brave?.isBrave` 真值判断测的是未调用的函数引用（harness 桩为 `() => Promise.resolve(true)`，恒真）。
 - Brave/Edge 的 `video.focus()` + `video.play()` 分支（fenced-guards 钉为字节不变）。
+- 旧版 `webkitSetPresentationMode` 分支只能进不能退（`disablePiP` 看 `document.pictureInPictureElement`，该路径不设置它，也不发标准 enter/leave 事件）。Safari 13.1+ 走标准 API，不受影响。
+- `#debounce` 以 `fn.toString()` 为键：`#scheduleBiliRescan` 依赖「同源码的新闭包共用一个定时器」来合并 `currententrychange` + `popstate`。新增调用点的函数体不能与现有的逐字相同。
 - 明确不做：通用站点探测、快捷键、Document PiP。

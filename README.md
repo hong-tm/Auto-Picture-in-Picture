@@ -48,6 +48,14 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 
 ## Changelog
 
+### v1.6.1
+
+- A PiP request from the browser (native auto PiP, or the PiP button in the browser's media controls) is no longer dropped when it arrives while the script's own request is still in flight. The script's request has no user gesture and is about to be rejected, so the browser's request now runs right after it. This mostly affected Edge and Brave, and pages where the video was still being located.
+- Turning the master switch off in one tab now also stops native auto PiP in tabs that were already open. Their Media Session handler checks the setting when it is called. The PiP button in the browser's media controls still works.
+- The script menu is registered once per page. Frames inside a page the script already runs in (YouTube live chat, for example) no longer add duplicate commands. An embedded player on another site keeps its menu.
+- Menu labels refresh when you return to a tab, so a toggle made in another tab shows the right ON/OFF state.
+- While the page is hidden, the script keeps watching for a replaced video element. A site that swaps the video without a navigation event no longer leaves PiP stuck on the removed video.
+
 ### v1.6.0
 
 - New userscript menu: a master switch for automatic PiP and a "Close PiP on return" switch. Settings persist through the script manager's storage (`GM_setValue`), or the site's `localStorage` when that is unavailable. With the master switch off, the script also removes its Media Session PiP handler, so the browser's native Auto PiP no longer opens windows through it; the player's own PiP button still works.
@@ -158,7 +166,7 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 >
 > - `#browser-initiated-automatic-picture-in-picture`
 >
-> With this flag enabled and native Auto PiP configured, this userscript becomes optional as the browser now handles automatic PiP functionality natively.
+> This flag only matters when no `enterpictureinpicture` handler is registered: Chrome then opens PiP itself. While the userscript's master switch is ON, the script registers that handler and Chrome calls it instead, so you do not need this flag. It takes effect with the master switch OFF or the script disabled.
 
 </details>
 
@@ -168,7 +176,10 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 >
 > With all flags left at `Default`, the userscript still keeps its own fallback path. Chrome may require a fresh click for a later direct request, especially for window minimization.
 
-> **Minimize does not trigger?** A minimized window hides the page with no user gesture on it, and a userscript cannot create one, so the script's own request only succeeds within ~5 seconds after your last click. For minimize (and fully covered windows), enable the native path above: the site permission "Automatically enter Picture-in-Picture mode" plus `#auto-picture-in-picture-for-video-playback`. Chrome then calls the media-session action the script registers and opens PiP without a gesture. The native path needs media that is playing and was audible within the last two seconds in the top frame; muted videos and iframe players keep the script's click-based path.
+> **Minimize only works once after a click?** A minimized window hides the page with no user gesture on it. A userscript cannot create a gesture, so the script's own request only succeeds within about 5 seconds after your last click or key press in the page. Clicking the minimize button, the taskbar, or an OS shortcut does not count. There are two ways to make minimize work every time:
+>
+> 1. **Let Chrome trigger it (no click needed).** Set the site permission "Automatically enter Picture-in-Picture mode" to Allow, then enable `#auto-picture-in-picture-on-window-occluded` in `chrome://flags` (plus `#auto-picture-in-picture-for-video-playback` if tab switching does not trigger native PiP yet) and restart. Chrome then calls the media-session action the script registers when the window is minimized or fully covered, and opens PiP without a gesture. Chrome documents tab switching as the default trigger; the occlusion flag is experimental and off by default, and works on Windows, macOS and ChromeOS. The native path needs media that is playing and was audible within the last two seconds in the top frame. Muted videos and iframe players keep the script's click-based path.
+> 2. **Keep the PiP window open.** Turn "Close PiP on return" OFF in the script menu. The window opened by your first click then stays open when you come back, so later minimizes need no new request. You close it yourself when you are done.
 
 ### Firefox Setup
 
