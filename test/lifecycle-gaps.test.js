@@ -218,6 +218,28 @@ module.exports = { register(t) {
 		assert.equal(w.listeners(old, "leavepictureinpicture"), 0);
 	});
 
+	t.test("a second replacement in the same hidden period is also picked up", async () => {
+		const w = await ready({
+			host: "bilibili.com",
+			videos: [{ selectors: ["video"], playing: true }],
+			keepPipOnDetach: true,
+		});
+		const first = w.videos[0];
+		w.setHidden(true);
+		await w.tick(600);
+		assert.equal(w.document.pictureInPictureElement, first);
+		const second = w.createVideo({ selectors: ["video"], playing: true });
+		w.swapVideo(second, { playing: true });
+		await w.tick(600);
+		assert.equal(w.document.pictureInPictureElement, second, "first replacement");
+		const third = w.createVideo({ selectors: ["video"], playing: true });
+		w.swapVideo(third, { playing: true });
+		await w.tick(600);
+		assert.equal(w.document.pictureInPictureElement, third, "second replacement in the same hidden period");
+		assert.equal(w.listeners(second, "leavepictureinpicture"), 0);
+		assert.equal(w.errors.length, 0);
+	});
+
 	t.test("script survives document-start without documentElement", () => {
 		const source = fs.readFileSync(path.join(__dirname, "..", "pip.js"), "utf8");
 		const sandbox = {

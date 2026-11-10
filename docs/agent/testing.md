@@ -12,7 +12,7 @@ NODE_PATH=<global node_modules> node test/live-check.js --fixture-only   # 离�
 
 ## harness 能 / 不能证明什么
 
-harness 的 `subframe: true` 选项模拟「已匹配页面里的同源子框架」（`window.top` 可读且不等于自身）。
+harness 的 `subframe: true` 选项模拟「已匹配页面里的同源子框架」（`window.top` 可读且不等于自身）；`crossOriginTop: true` 模拟跨源顶层里的嵌入播放器（读 `window.top.location` 抛错，须保留菜单）。
 
 **能**：状态机（state-matrix 8 行）、触发时序（trigger-timing）、菜单与设置（settings-menu）、原生配合语义（native-autopip / native-pip-exit）、observer 生命周期（bug5）、视频发现（video-discovery）、头部围栏（fenced-guards）、B 站主世界导航（bilibili-main-world）。
 

@@ -114,4 +114,40 @@ module.exports = { register(t) {
 		await w.tick(50);
 		assert.equal(w.document.pictureInPictureElement, null);
 	});
+	t.test("a queued browser action survives a guard exit of the in-flight request", async () => {
+		const w = createWorld({host: "youtube.com"});
+		w.setHidden(true);
+		await w.tick(300);
+		const handler = action(w);
+		handler({enterPictureInPictureReason: "contentoccluded"});
+		const stalled = w.createVideo({selectors: [".html5-main-video"], paused: true, readyState: 2, currentTime: 0});
+		w.attach(stalled);
+		await w.tick(600);
+		assert.equal(w.document.pictureInPictureElement, stalled, "the queued browser action ran after the guard exit");
+		assert.equal(w.errors.length, 0);
+	});
+	t.test("a queued user action behind a failing browser request still runs", async () => {
+		const w = await ready();
+		const video = w.videos[0];
+		const original = video.requestPictureInPicture;
+		const rejections = [];
+		video.requestPictureInPicture = () => new Promise((_, no) => {
+			rejections.push(() => no(Object.assign(new Error("gesture"), {name: "NotAllowedError"})));
+		});
+		w.setHidden(true);
+		await w.tick(600);
+		assert.equal(rejections.length, 1, "precondition: script request in flight");
+		const handler = action(w);
+		handler({enterPictureInPictureReason: "contentoccluded"});
+		rejections[0]();
+		await w.tick(1);
+		assert.equal(rejections.length, 2, "the browser request re-ran after the script request failed");
+		handler({enterPictureInPictureReason: "useraction"});
+		video.requestPictureInPicture = original;
+		rejections[1]();
+		await w.tick(1);
+		assert.equal(w.document.pictureInPictureElement, video);
+		assert.equal(w.calls.rPiP[video], 1);
+		assert.equal(w.errors.length, 0);
+	});
 } };

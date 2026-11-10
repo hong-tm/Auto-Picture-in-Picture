@@ -443,7 +443,12 @@ function createWorld(options = {}) {
 	sandbox.window = sandbox;
 	sandbox.self = sandbox;
 	// options.subframe models a same-origin frame inside a matched page.
+	// options.crossOriginTop models an embedded player on another site:
+	// reading window.top.location throws, and the frame keeps its menu.
 	sandbox.top = options.subframe ? { location: { hostname: host } } : sandbox;
+	if (options.crossOriginTop) {
+		sandbox.top = { get location() { throw new Error("SecurityError: cross-origin top"); } };
+	}
 	if (!options.noNavigationApi) sandbox.navigation = navigation;
 
 	// --- initial DOM graph ------------------------------------------------

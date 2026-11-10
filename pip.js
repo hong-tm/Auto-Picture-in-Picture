@@ -395,7 +395,9 @@
 				video = document.querySelector(selector);
 				if (video) {
 					this.#lastVideoElement = video;
-					this.#setVideoObserverActive(false);
+					// While hidden the observer must stay connected: the site may
+					// swap the video again in the same hidden period.
+					this.#setVideoObserverActive(document.hidden);
 					this.#syncPipListeners();
 					break;
 				}
@@ -502,10 +504,14 @@
 			} finally {
 				this.#entryPending = false;
 				if (!document.pictureInPictureElement) this.#browserPiP = false;
-			}
-			if (this.#browserQueued) {
-				this.#browserQueued = false;
-				if (!browserAction && document.hidden) await this.enablePiP(true, true);
+				// Run a queued browser action even when this request ended in
+				// a guard return: that is the common hidden-page exit. Also
+				// re-run behind a failed browser request, or a queued user
+				// click would be lost; an open PiP stops the re-run at once.
+				if (this.#browserQueued) {
+					this.#browserQueued = false;
+					if (document.hidden) await this.enablePiP(true, true);
+				}
 			}
 		}
 

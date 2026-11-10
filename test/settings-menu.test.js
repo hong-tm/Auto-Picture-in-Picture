@@ -161,4 +161,15 @@ module.exports = { register(t) {
 		await w.tick(600);
 		assert.equal(w.document.pictureInPictureElement, w.videos[0], "the controller still runs");
 	});
+
+	t.test("an embedded player on a cross-origin page keeps its menu", async () => {
+		const w = await ready({ crossOriginTop: true });
+		assert.deepEqual(w.menu.map((c) => c.label), [
+			"Auto PiP: ON",
+			"Close PiP on return: ON",
+		]);
+		w.setHidden(true);
+		await w.tick(600);
+		assert.equal(w.document.pictureInPictureElement, w.videos[0], "the controller still runs");
+	});
 } };

@@ -50,11 +50,11 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 
 ### v1.6.1
 
-- A PiP request from the browser (native auto PiP, or the PiP button in the browser's media controls) is no longer dropped when it arrives while the script's own request is still in flight. The script's request has no user gesture and is about to be rejected, so the browser's request now runs right after it. This mostly affected Edge and Brave, and pages where the video was still being located.
+- A PiP request from the browser (native auto PiP, or the PiP button in the browser's media controls) is no longer dropped when it arrives while another request is still in flight: it runs right after that request settles, whether it ends in a guard exit, a rejection, or success. This includes a request queued behind a browser request that fails, and mostly affected Edge and Brave, and pages where the video was still being located.
 - Turning the master switch off in one tab now also stops native auto PiP in tabs that were already open. Their Media Session handler checks the setting when it is called. The PiP button in the browser's media controls still works.
 - The script menu is registered once per page. Frames inside a page the script already runs in (YouTube live chat, for example) no longer add duplicate commands. An embedded player on another site keeps its menu.
 - Menu labels refresh when you return to a tab, so a toggle made in another tab shows the right ON/OFF state.
-- While the page is hidden, the script keeps watching for a replaced video element. A site that swaps the video without a navigation event no longer leaves PiP stuck on the removed video.
+- While the page is hidden, the script keeps watching for a replaced video element, including a second swap in the same hidden period. A site that swaps the video without a navigation event no longer leaves PiP stuck on the removed video.
 
 ### v1.6.0
 
@@ -130,7 +130,7 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 
 | Browser | Native Auto PiP | Status         | Available In                                                |
 | ------- | --------------- | -------------- | ----------------------------------------------------------- |
-| Chrome  | ✅              | Gradual rollout | Chrome 134+ (flag `#auto-picture-in-picture-for-video-playback` forces it on) |
+| Chrome  | ✅              | On by default  | Chrome 134+ (tab switching)                                |
 | Firefox | ✅              | Experimental   | Firefox 130+                                                |
 | Edge    | ❓              | Beta           | Edge 137+ (Chromium-based)                                  |
 | Brave   | ❓              | Beta           | Brave 1.63+                                                 |
@@ -156,7 +156,6 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 
 2. Configure Chrome Flags
    Navigate to `chrome://flags` and enable:
-   - `#auto-picture-in-picture-for-video-playback`
    - `#video-picture-in-picture-controls-update-2024`
    - `#media-session-enter-picture-in-picture`
    - `#document-picture-in-picture-animate-resize`
@@ -176,9 +175,9 @@ An advanced userscript that automatically triggers Picture-in-Picture (PiP) mode
 >
 > With all flags left at `Default`, the userscript still keeps its own fallback path. Chrome may require a fresh click for a later direct request, especially for window minimization.
 
-> **Minimize only works once after a click?** A minimized window hides the page with no user gesture on it. A userscript cannot create a gesture, so the script's own request only succeeds within about 5 seconds after your last click or key press in the page. Clicking the minimize button, the taskbar, or an OS shortcut does not count. There are two ways to make minimize work every time:
+> **Minimize only works once after a click?** A minimized window hides the page with no user gesture on it. A userscript cannot create a gesture, so the script's own request only succeeds within about 5 seconds after your last click or key press in the page. Clicking the minimize button, the taskbar, or an OS shortcut does not count. There are two repeatable ways around this:
 >
-> 1. **Let Chrome trigger it (no click needed).** Set the site permission "Automatically enter Picture-in-Picture mode" to Allow, then enable `#auto-picture-in-picture-on-window-occluded` in `chrome://flags` (plus `#auto-picture-in-picture-for-video-playback` if tab switching does not trigger native PiP yet) and restart. Chrome then calls the media-session action the script registers when the window is minimized or fully covered, and opens PiP without a gesture. Chrome documents tab switching as the default trigger; the occlusion flag is experimental and off by default, and works on Windows, macOS and ChromeOS. The native path needs media that is playing and was audible within the last two seconds in the top frame. Muted videos and iframe players keep the script's click-based path.
+> 1. **Let Chrome trigger it (no click needed).** Set the site permission "Automatically enter Picture-in-Picture mode" to Allow, then enable `#auto-picture-in-picture-on-window-occluded` in `chrome://flags` and restart. When another window fully covers Chrome, it calls the media-session action the script registers and opens PiP without a gesture. Minimize is not covered: Chromium maps a minimized window to a hidden state that its auto PiP helper deliberately leaves alone, so minimize still needs a click within the 5-second window, or path 2. The occlusion flag is experimental, off by default, and available on Windows, macOS, Linux and ChromeOS. The native path needs media that is playing and was audible within the last two seconds in the top frame. Muted videos and iframe players keep the script's click-based path.
 > 2. **Keep the PiP window open.** Turn "Close PiP on return" OFF in the script menu. The window opened by your first click then stays open when you come back, so later minimizes need no new request. You close it yourself when you are done.
 
 ### Firefox Setup

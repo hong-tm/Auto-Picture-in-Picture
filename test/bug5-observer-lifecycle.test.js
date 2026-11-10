@@ -1,8 +1,9 @@
 "use strict";
 
 // RED suite for BUG-5: the MutationObserver watches the whole documentElement
-// subtree forever. It must disconnect once a video is locked and reconnect
-// only when the controller again needs to discover a video:
+// subtree forever. It must disconnect once a video is locked while the page is
+// visible (a hidden page keeps it connected for replacement swaps) and
+// reconnect only when the controller again needs to discover a video:
 //   (a) bilibili navigation rescan
 //   (b) getVideoElement retry exhaustion
 //   (c) leavepictureinpicture
@@ -177,14 +178,12 @@ module.exports = {
 		t.test("observer reconnects when the user leaves PiP", async () => {
 			const world = await boot(YOUTUBE);
 			const v1 = world.videos[0];
+			await lock(world);
 			const obs = observer(world);
-
-			world.setHidden(true);
-			await world.tick(600);
-			assert.equal(world.calls.rPiP[v1] || 0, 1, "precondition: hide entered PiP");
-			assert.equal(obs.observed, false, "precondition: observer disconnected after lock");
+			assert.equal(obs.observed, false, "precondition: observer disconnected after lock on a visible page");
 
 			const observeBefore = obs.observeCalls;
+			world.userEnterPip(v1);
 			world.userLeavePip();
 
 			assert.equal(obs.observed, true, "leavepictureinpicture must reconnect the observer");
