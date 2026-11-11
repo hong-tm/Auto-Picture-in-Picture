@@ -118,7 +118,7 @@ module.exports = { register(t) {
 		assert.equal(w.document.pictureInPictureElement, null);
 	});
 
-	t.test("a browser callback does not take ownership of existing script PiP", async () => {
+	t.test("a browser action on a hidden page gives the browser the return close", async () => {
 		const w = await ready();
 		w.setHidden(true);
 		await w.tick(600);
@@ -126,7 +126,11 @@ module.exports = { register(t) {
 		await action(w)();
 		w.setHidden(false);
 		await w.tick(0);
-		assert.equal(w.calls.exit, 1);
+		// The browser's auto PiP engaged for this cycle, so it closes the window
+		// on return; a racing script exit can hang PiP (real-machine 2026-11-11).
+		assert.equal(w.calls.exit, 0, "browser-first wait, no racing exit");
+		await w.tick(1000);
+		assert.equal(w.calls.exit, 1, "the browser left it open; the script closes after the wait");
 		assert.equal(w.document.pictureInPictureElement, null);
 	});
 } };

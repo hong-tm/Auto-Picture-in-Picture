@@ -150,4 +150,26 @@ module.exports = { register(t) {
 		assert.equal(w.calls.rPiP[video], 1);
 		assert.equal(w.errors.length, 0);
 	});
+	t.test("a window opened before a queued browser action is left to the browser on return", async () => {
+		const w = await ready();
+		const video = w.videos[0];
+		const original = video.requestPictureInPicture;
+		let settle;
+		video.requestPictureInPicture = () => new Promise(resolve => { settle = () => resolve(original.call(video)); });
+		w.setHidden(true);
+		await w.tick(600);
+		assert.equal(typeof settle, "function", "precondition: script request in flight");
+		const handler = action(w);
+		handler({enterPictureInPictureReason: "contentoccluded"});
+		settle();
+		await w.tick(1);
+		assert.equal(w.document.pictureInPictureElement, video);
+		w.setHidden(false);
+		await w.tick(0);
+		assert.equal(w.calls.exit, 0, "a browser-involved window must get the browser-first wait, not a racing exit");
+		w.userLeavePip();
+		await w.tick(1500);
+		assert.equal(w.calls.exit, 0, "the browser closed its own window; the script must not exit again");
+		assert.equal(w.errors.length, 0);
+	});
 } };

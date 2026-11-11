@@ -478,7 +478,14 @@
 		async enablePiP(forceEnable = false, browserAction = false) {
 			// Chromium keeps a removed video as pictureInPictureElement with no leave
 			// event, so only a connected element means PiP is really showing the page.
-			if (document.pictureInPictureElement?.isConnected) return;
+			if (document.pictureInPictureElement?.isConnected) {
+				// The browser's auto PiP engaged for this hidden cycle even though a
+				// script request opened the window first, and it will close that window
+				// on return. Own it here or the script's exit races the browser's own
+				// close and can hang PiP with no leave event.
+				if (browserAction && document.hidden) this.#browserPiP = true;
+				return;
+			}
 			if (this.#entryPending) {
 				// A browser action is the one request that needs no gesture. Do
 				// not lose it behind a script request that is about to be rejected.
