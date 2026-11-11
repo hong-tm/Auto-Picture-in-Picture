@@ -476,16 +476,16 @@
 		}
 
 		async enablePiP(forceEnable = false, browserAction = false) {
+			// A browser action on a hidden page means a browser-side close may be
+			// in flight on return, whatever request ends up opening the window:
+			// ownership follows the action, not the winning request. Own the window
+			// now so the return close waits the browser out instead of racing it
+			// (a racing exit can hang PiP with no leave event). A leave, a cycle
+			// that opens nothing, or a later script entry resets the flag.
+			if (browserAction && document.hidden) this.#browserPiP = true;
 			// Chromium keeps a removed video as pictureInPictureElement with no leave
 			// event, so only a connected element means PiP is really showing the page.
-			if (document.pictureInPictureElement?.isConnected) {
-				// The browser's auto PiP engaged for this hidden cycle even though a
-				// script request opened the window first, and it will close that window
-				// on return. Own it here or the script's exit races the browser's own
-				// close and can hang PiP with no leave event.
-				if (browserAction && document.hidden) this.#browserPiP = true;
-				return;
-			}
+			if (document.pictureInPictureElement?.isConnected) return;
 			if (this.#entryPending) {
 				// A browser action is the one request that needs no gesture. Do
 				// not lose it behind a script request that is about to be rejected.

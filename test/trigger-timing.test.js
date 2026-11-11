@@ -172,4 +172,23 @@ module.exports = { register(t) {
 		assert.equal(w.calls.exit, 0, "the browser closed its own window; the script must not exit again");
 		assert.equal(w.errors.length, 0);
 	});
+	t.test("a return before the in-flight request settles still defers to the browser", async () => {
+		const w = await ready();
+		const video = w.videos[0];
+		const original = video.requestPictureInPicture;
+		let settle;
+		video.requestPictureInPicture = () => new Promise(resolve => { settle = () => resolve(original.call(video)); });
+		w.setHidden(true);
+		await w.tick(600);
+		assert.equal(typeof settle, "function", "precondition: script request in flight");
+		action(w)({enterPictureInPictureReason: "contentoccluded"});
+		w.setHidden(false);
+		settle();
+		await w.tick(1);
+		assert.equal(w.document.pictureInPictureElement, video);
+		assert.equal(w.calls.exit, 0, "browser-involved: 1s grace, no racing exit");
+		await w.tick(1000);
+		assert.equal(w.calls.exit, 1, "the browser left it open; the script closes after the wait");
+		assert.equal(w.errors.length, 0);
+	});
 } };

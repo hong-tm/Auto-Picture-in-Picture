@@ -123,7 +123,7 @@ module.exports = { register(t) {
 		w.setHidden(true);
 		await w.tick(600);
 		assert.equal(w.document.pictureInPictureElement, w.videos[0]);
-		await action(w)();
+		await action(w)({enterPictureInPictureReason: "contentoccluded"});
 		w.setHidden(false);
 		await w.tick(0);
 		// The browser's auto PiP engaged for this cycle, so it closes the window
@@ -132,5 +132,30 @@ module.exports = { register(t) {
 		await w.tick(1000);
 		assert.equal(w.calls.exit, 1, "the browser left it open; the script closes after the wait");
 		assert.equal(w.document.pictureInPictureElement, null);
+	});
+
+	t.test("a useraction on a hidden page takes the same browser-first close", async () => {
+		const w = await ready();
+		w.setHidden(true);
+		await w.tick(600);
+		assert.equal(w.document.pictureInPictureElement, w.videos[0]);
+		await action(w)({enterPictureInPictureReason: "useraction"});
+		w.setHidden(false);
+		await w.tick(0);
+		assert.equal(w.calls.exit, 0, "not gated on reason: browser-first wait either way");
+		await w.tick(1000);
+		assert.equal(w.calls.exit, 1, "the browser did not close it; the script does");
+		assert.equal(w.document.pictureInPictureElement, null);
+	});
+
+	t.test("a browser action on a visible page does not take over an open window", async () => {
+		const w = await ready();
+		w.userEnterPip(w.videos[0]);
+		await action(w)({enterPictureInPictureReason: "contentoccluded"});
+		w.setHidden(true);
+		await w.tick(0);
+		w.setHidden(false);
+		await w.tick(0);
+		assert.equal(w.calls.exit, 1, "still script-owned: closes at once on return");
 	});
 } };
