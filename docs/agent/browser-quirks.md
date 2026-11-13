@@ -17,7 +17,7 @@ Chrome / Edge / Brave（Chromium 系）为主力；Firefox 130+ 实验性（READ
 
 - 可见页上排队的动作会被有意丢弃（flush 的 `document.hidden` 门控，有测试钉住）：脚本请求在途、页面恰好恢复可见时到达的用户点击会丢——窄竞态，浏览器 UI 点击通常由浏览器自己直接处理。
 
-- `navigator.brave?.isBrave` 真值判断测的是未调用的函数引用（harness 桩为 `() => Promise.resolve(true)`，恒真）。
+- `navigator.brave?.isBrave` 真值判断测的是未调用的函数引用：真实 Brave 里结果仍正确（`navigator.brave` 只在 Brave 暴露且为真值函数，其他浏览器走 UA 回退）。该分支只有 fenced-guards 字节围栏、无行为测试——harness 有 `options.brave` 桩，但没有任何测试传入它。
 - Brave/Edge 的 `video.focus()` + `video.play()` 分支（fenced-guards 钉为字节不变）。
 - 旧版 `webkitSetPresentationMode` 分支只能进不能退（`disablePiP` 看 `document.pictureInPictureElement`，该路径不设置它，也不发标准 enter/leave 事件）。Safari 13.1+ 走标准 API，不受影响。
 - `#debounce` 以 `fn.toString()` 为键：`#scheduleBiliRescan` 依赖「同源码的新闭包共用一个定时器」来合并 `currententrychange` + `popstate`。新增调用点的函数体不能与现有的逐字相同。
