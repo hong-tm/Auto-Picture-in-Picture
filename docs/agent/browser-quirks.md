@@ -16,7 +16,7 @@ Chrome / Edge / Brave（Chromium 系）为主力；Firefox 130+ 实验性（READ
 ## 已知未修（有意保留，别顺手改）
 
 - 可见页上排队的动作会被有意丢弃（flush 的 `document.hidden` 门控，有测试钉住）：脚本请求在途、页面恰好恢复可见时到达的用户点击会丢——窄竞态，浏览器 UI 点击通常由浏览器自己直接处理。
-- 脚本请求在途时到达的换片重扫同样被丢弃（预存行为，v1.6.1 前对在途期一切调用都直接 return）：A 的请求未落定、B 替换 A 时，B 的 `enablePiP` 在 pending 守卫处返回；A 若失败无人补跑 B，只能等下次可见性变化或 DOM 变动。窄竞态，未修。
+- 脚本请求在途时到达的换片重扫同样被丢弃（预存行为，v1.6.1 前对在途期一切调用都直接 return）：A 的请求未落定、B 替换 A 时，B 的 `enablePiP` 在 pending 守卫处返回；A 若失败无人补跑 B。B 已连接锁定后普通 DOM 变动也不重试（observer 对已连接锁定视频早退），恢复只能等下次可见性变化或 B 的 playing 事件。窄竞态，未修。
 - 排队浏览器动作的重放（`#browserQueued` → `enablePiP(true, true)`）不复查总开关：动作入队后、重放前别的标签页关掉总开关时，自动动作（contentoccluded）仍会开窗。入口侧已按 reason + 总开关拦截，仅重放路径漏；毫秒级窗口、后果良性（多开一次窗），未修。
 
 - `navigator.brave?.isBrave` 真值判断测的是未调用的函数引用：真实 Brave 里结果仍正确（`navigator.brave` 只在 Brave 暴露且为真值函数，其他浏览器走 UA 回退）。该分支只有 fenced-guards 字节围栏、无行为测试——harness 有 `options.brave` 桩，但没有任何测试传入它。
