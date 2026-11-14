@@ -126,4 +126,50 @@ module.exports = { register(t) {
 		w.setHidden(false);
 		await w.tick(0);
 	});
+
+	t.test("a stale media action obeys a switch turned off in another tab", async () => {
+		const w = await ready();
+		const handler = w.calls.setActionHandler.at(-1).handler;
+		w.gmStore.set("settings", JSON.stringify({ enabled: false, closeOnReturn: true }));
+		w.setHidden(true);
+		await handler({ enterPictureInPictureReason: "contentoccluded" });
+		assert.equal(w.document.pictureInPictureElement, null, "native auto PiP must stay off");
+		assert.equal(w.calls.setActionHandler.at(-1).handler, null, "the stale handler is removed");
+		await handler({ enterPictureInPictureReason: "useraction" });
+		assert.equal(w.document.pictureInPictureElement, w.videos[0], "the browser PiP button still works");
+	});
+
+	t.test("returning to the page refreshes labels changed in another tab", async () => {
+		const w = await ready();
+		const before = w.menu.map((c) => c.id);
+		w.setHidden(true);
+		w.setHidden(false);
+		assert.deepEqual(w.menu.map((c) => c.id), before, "unchanged settings re-register nothing");
+		w.setHidden(true);
+		w.gmStore.set("settings", JSON.stringify({ enabled: false, closeOnReturn: false }));
+		w.setHidden(false);
+		assert.deepEqual(w.menu.map((c) => c.label), [
+			"Auto PiP: OFF",
+			"Close PiP on return: OFF",
+		]);
+	});
+
+	t.test("a same-origin subframe of a matched page registers no menu", async () => {
+		const w = await ready({ subframe: true });
+		assert.deepEqual(w.menu, []);
+		w.setHidden(true);
+		await w.tick(600);
+		assert.equal(w.document.pictureInPictureElement, w.videos[0], "the controller still runs");
+	});
+
+	t.test("an embedded player on a cross-origin page keeps its menu", async () => {
+		const w = await ready({ crossOriginTop: true });
+		assert.deepEqual(w.menu.map((c) => c.label), [
+			"Auto PiP: ON",
+			"Close PiP on return: ON",
+		]);
+		w.setHidden(true);
+		await w.tick(600);
+		assert.equal(w.document.pictureInPictureElement, w.videos[0], "the controller still runs");
+	});
 } };

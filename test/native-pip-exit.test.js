@@ -118,15 +118,79 @@ module.exports = { register(t) {
 		assert.equal(w.document.pictureInPictureElement, null);
 	});
 
-	t.test("a browser callback does not take ownership of existing script PiP", async () => {
+	t.test("a browser action on a hidden page gives the browser the return close", async () => {
 		const w = await ready();
 		w.setHidden(true);
 		await w.tick(600);
 		assert.equal(w.document.pictureInPictureElement, w.videos[0]);
-		await action(w)();
+		await action(w)({enterPictureInPictureReason: "contentoccluded"});
 		w.setHidden(false);
 		await w.tick(0);
-		assert.equal(w.calls.exit, 1);
+		// The browser's auto PiP engaged for this cycle, so it closes the window
+		// on return; a racing script exit can hang PiP (real-machine 2026-11-11).
+		assert.equal(w.calls.exit, 0, "browser-first wait, no racing exit");
+		await w.tick(1000);
+		assert.equal(w.calls.exit, 1, "the browser left it open; the script closes after the wait");
 		assert.equal(w.document.pictureInPictureElement, null);
+	});
+
+	t.test("a useraction on a hidden page takes the same browser-first close", async () => {
+		const w = await ready();
+		w.setHidden(true);
+		await w.tick(600);
+		assert.equal(w.document.pictureInPictureElement, w.videos[0]);
+		await action(w)({enterPictureInPictureReason: "useraction"});
+		w.setHidden(false);
+		await w.tick(0);
+		assert.equal(w.calls.exit, 0, "not gated on reason: browser-first wait either way");
+		await w.tick(1000);
+		assert.equal(w.calls.exit, 1, "the browser did not close it; the script does");
+		assert.equal(w.document.pictureInPictureElement, null);
+	});
+
+	t.test("a browser action on a visible page does not take over an open window", async () => {
+		const w = await ready();
+		w.userEnterPip(w.videos[0]);
+		await action(w)({enterPictureInPictureReason: "contentoccluded"});
+		w.setHidden(true);
+		await w.tick(0);
+		w.setHidden(false);
+		await w.tick(0);
+		assert.equal(w.calls.exit, 1, "still script-owned: closes at once on return");
+	});
+
+	t.test("a script re-entry that reuses the browser-owned window keeps the browser-first close", async () => {
+		// keepPipOnDetach models the Chromium quirk: removing the PiP video
+		// leaves a stale pictureInPictureElement and fires no leave event.
+		const w = createWorld({ host: "youtube.com", keepPipOnDetach: true, videos: [
+			{ selectors: [".html5-main-video"], playing: true },
+		] });
+		w.flushMutations();
+		await w.tick(600);
+		const a = w.videos[0];
+		w.setHidden(true);
+		await action(w)();
+		assert.equal(w.document.pictureInPictureElement, a, "browser-owned window on A");
+		// The site swaps videos on the hidden page: A goes away with no leave,
+		// B is attached, and the observer rescans into a script entry on B.
+		const b = w.createVideo({ selectors: [".html5-main-video"], playing: true });
+		b.requestPictureInPicture = function () {
+			w.calls.rPiP[this] = (w.calls.rPiP[this] || 0) + 1;
+			// Chromium reuses the open window: B enters, A gets no leave.
+			w.document.pictureInPictureElement = this;
+			this.dispatch("enterpictureinpicture", { type: "enterpictureinpicture" });
+			return Promise.resolve();
+		};
+		w.swapVideo(b);
+		assert.equal(w.document.pictureInPictureElement, a, "stale element with no leave");
+		await w.tick(400);
+		assert.equal(w.document.pictureInPictureElement, b, "B reuses the window");
+		w.setHidden(false);
+		await w.tick(0);
+		assert.equal(w.calls.exit, 0, "browser-owned window: no racing exit on return");
+		await w.tick(1000);
+		assert.equal(w.calls.exit, 1, "the browser left it open; the script closes after the wait");
+		assert.equal(w.document.pictureInPictureElement, null);
+		assert.deepEqual(w.errors, []);
 	});
 } };
