@@ -158,4 +158,39 @@ module.exports = { register(t) {
 		await w.tick(0);
 		assert.equal(w.calls.exit, 1, "still script-owned: closes at once on return");
 	});
+
+	t.test("a script re-entry that reuses the browser-owned window keeps the browser-first close", async () => {
+		// keepPipOnDetach models the Chromium quirk: removing the PiP video
+		// leaves a stale pictureInPictureElement and fires no leave event.
+		const w = createWorld({ host: "youtube.com", keepPipOnDetach: true, videos: [
+			{ selectors: [".html5-main-video"], playing: true },
+		] });
+		w.flushMutations();
+		await w.tick(600);
+		const a = w.videos[0];
+		w.setHidden(true);
+		await action(w)();
+		assert.equal(w.document.pictureInPictureElement, a, "browser-owned window on A");
+		// The site swaps videos on the hidden page: A goes away with no leave,
+		// B is attached, and the observer rescans into a script entry on B.
+		const b = w.createVideo({ selectors: [".html5-main-video"], playing: true });
+		b.requestPictureInPicture = function () {
+			w.calls.rPiP[this] = (w.calls.rPiP[this] || 0) + 1;
+			// Chromium reuses the open window: B enters, A gets no leave.
+			w.document.pictureInPictureElement = this;
+			this.dispatch("enterpictureinpicture", { type: "enterpictureinpicture" });
+			return Promise.resolve();
+		};
+		w.swapVideo(b);
+		assert.equal(w.document.pictureInPictureElement, a, "stale element with no leave");
+		await w.tick(400);
+		assert.equal(w.document.pictureInPictureElement, b, "B reuses the window");
+		w.setHidden(false);
+		await w.tick(0);
+		assert.equal(w.calls.exit, 0, "browser-owned window: no racing exit on return");
+		await w.tick(1000);
+		assert.equal(w.calls.exit, 1, "the browser left it open; the script closes after the wait");
+		assert.equal(w.document.pictureInPictureElement, null);
+		assert.deepEqual(w.errors, []);
+	});
 } };

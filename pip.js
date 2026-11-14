@@ -480,8 +480,10 @@
 			// in flight on return, whatever request ends up opening the window:
 			// ownership follows the action, not the winning request. Own the window
 			// now so the return close waits the browser out instead of racing it
-			// (a racing exit can hang PiP with no leave event). A leave, a cycle
-			// that opens nothing, or a later script entry resets the flag.
+			// (a racing exit can hang PiP with no leave event). A leave or a
+			// cycle that opens nothing resets the flag; a script entry never
+			// downgrades it, because the browser's window may be reused for the
+			// new video and the browser still closes that window on return.
 			if (browserAction && document.hidden) this.#browserPiP = true;
 			// Chromium keeps a removed video as pictureInPictureElement with no leave
 			// event, so only a connected element means PiP is really showing the page.
@@ -497,7 +499,9 @@
 			// are user initiated and stay allowed.
 			if (!Settings.enabled && !browserAction) return;
 			this.#entryPending = true;
-			this.#browserPiP = browserAction;
+			// Preserve browser ownership: the in-flight entry may reuse the
+			// browser's still-open window instead of opening a fresh one.
+			this.#browserPiP = browserAction || this.#browserPiP;
 			const id = this.#resume;
 			try {
 				const video = this.#lastVideoElement?.isConnected && !this.#shorts()
