@@ -2,7 +2,7 @@
 
 Tampermonkey 用户脚本：标签页隐藏时自动进画中画。单文件 `pip.js`（IIFE + 私有字段类，tab 缩进），无构建无依赖，GreasyFork 直接消费。支持 YouTube、YouTube Music、B 站、B 站直播；带脚本菜单双开关（总开关 / 返回页面时关闭）。`test/` 是零依赖 node:vm 回归套件 + 可选真浏览器 live-check。
 
-涉及浏览器扩展、MV3、chrome.* API 或原生 PiP 等 web 平台能力时，先用 `chrome-extensions` 技能查当前做法。技能在 `.agents/skills/chrome-extensions`（软链自 `/root/.agents/skills-shared/modern-web-guidance`）；更新走共享仓 `git pull`，别跑 `npx skills add`（会把软链换回实体拷贝）。
+涉及浏览器扩展、MV3、chrome.* API 或原生 PiP 等 web 平台能力时，先用 `chrome-extensions` 技能查当前做法。技能在 `.agents/skills/chrome-extensions`（软链自 `/root/.agents/skills-shared/modern-web-guidance`，该目录被 gitignore，新 checkout 不含它；不可用时查官方 Chrome 扩展与 Web 平台文档并在 PR 里注明来源）；更新走共享仓 `git pull`，别跑 `npx skills add`（会把软链换回实体拷贝）。
 
 ```bash
 node test/run.js                                        # 全量回归
